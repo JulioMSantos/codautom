@@ -41,15 +41,16 @@ st.set_page_config(page_title="Automação GAP UFSM", layout="wide")
 st.title("Automação GAP UFSM 🚀")
 
 # ==============================================================================
-# 1. MENU DE SELEÇÃO
+# PASSO 1: SELEÇÃO DO PROCESSO
 # ==============================================================================
-tipo_processo = st.sidebar.radio(
-    "📌 Selecione o Tipo de Processo:",
+st.markdown("### 1️⃣ Passo 1: Seleção do Processo e Relatório")
+tipo_processo = st.radio(
+    "Selecione o Tipo de Processo:",
     ["Acordo de Parceria (AP)", "Acordo Global (AG)", "Acordo de Cooperação Técnica (ACT)"],
-    index=1
+    index=1,
+    horizontal=True
 )
 
-st.markdown(f"### 📄 Leitor de Relatório para: **{tipo_processo}**")
 arquivo_pdf = st.file_uploader("Suba o Relatório do Projeto do GAP (PDF)", type=["pdf"])
 
 fundacoes_dados = {
@@ -70,7 +71,7 @@ dados_extraidos = {
 texto_limpo = ""
 
 # ==============================================================================
-# 2. MOTOR DE LEITURA DO PDF
+# MOTOR DE LEITURA DO PDF
 # ==============================================================================
 if arquivo_pdf:
     try:
@@ -289,26 +290,42 @@ if arquivo_pdf:
         st.error(f"❌ Erro no processamento do PDF: {str(e)}")
 
 # ==============================================================================
-# 3. INTERFACE STREAMLIT
+# INTERFACE STREAMLIT - CONTINUAÇÃO DOS PASSOS
 # ==============================================================================
 if arquivo_pdf:
-    with st.sidebar:
-        st.header("⚙️ Configurações do Processo")
-        if tipo_processo == "Acordo de Cooperação Técnica (ACT)":
-            status_fund, fund_sigla, ctx_fundacao = "Não possui", "ACT", {}
+    st.markdown("---")
+    
+    # ==============================================================================
+    # PASSO 2: VALIDAÇÃO DA FUNDAÇÃO
+    # ==============================================================================
+    st.markdown("### 2️⃣ Passo 2: Validação da Fundação")
+    
+    if tipo_processo == "Acordo de Cooperação Técnica (ACT)":
+        st.info("💡 Processos do tipo **ACT** não necessitam de Fundação de Apoio.")
+        status_fund, fund_sigla, ctx_fundacao = "Não possui", "ACT", {}
+    else:
+        fund_sugerida = dados_extraidos.get("fundacao_sugerida", "FATEC")
+        
+        st.info(f"🤖 O robô identificou que este projeto parece estar vinculado à fundação: **{fund_sugerida}**.")
+        fundacao_correta = st.radio("A fundação identificada acima está correta?", ["Sim", "Não"], index=0, horizontal=True)
+        
+        ctx_fundacao = {}
+        if fundacao_correta == "Sim":
+            fund_sigla = fund_sugerida
+            status_fund = "Já definida"
+            ctx_fundacao = fundacoes_dados[fund_sigla]
         else:
-            status_fund = st.radio("Fundação:", ["Já definida", "Não possui", "A definir"], index=0)
-            ctx_fundacao = {}
-            if status_fund == "Já definida":
-                lista_funds = list(fundacoes_dados.keys())
-                fund_sugerida = dados_extraidos["fundacao_sugerida"]
-                idx_padrao = lista_funds.index(fund_sugerida) if fund_sugerida in lista_funds else 0
-                
-                fund_sigla = st.selectbox("Selecione a Fundação:", list(fundacoes_dados.keys()), index=idx_padrao)
-                ctx_fundacao = fundacoes_dados[fund_sigla]
-            else:
-                fund_sigla = "SEM_FUND"
+            fund_sigla = st.selectbox("Por favor, selecione a fundação correta abaixo:", list(fundacoes_dados.keys()))
+            status_fund = "Já definida"
+            ctx_fundacao = fundacoes_dados[fund_sigla]
 
+    st.markdown("---")
+
+    # ==============================================================================
+    # PASSO 3: EDIÇÃO DE DADOS E TABELAS
+    # ==============================================================================
+    st.markdown("### 3️⃣ Passo 3: Conferência e Edição de Dados")
+    
     with st.expander("📝 Detalhes do Projeto e Textos Longos", expanded=True):
         st.warning("⚠️ **ATENÇÃO:** O robô preencheu os dados automaticamente com base no PDF. Por favor, confira todos os campos abaixo. Se algum dado estiver incorreto ou faltando, você pode **corrigir ou preencher manualmente** nestas caixas antes de gerar os documentos.")
         c1, c2 = st.columns(2)
@@ -359,7 +376,7 @@ if arquivo_pdf:
                 n_lab = c_lab1.text_input(f"Nome do Lab {i+1}", key=f"lab_nome_{i}")
                 u_lab = c_lab2.text_input(f"Unidade (Centro) {i+1}", key=f"lab_unidade_{i}")
                 n_resp = c_lab3.text_input(f"Responsável {i+1}", key=f"lab_resp_{i}")
-                s_resp = c_lab4.text_input(f"SIAPE {i+1}", key=f"lab_siape_{i}")
+                s_resp = c_lab4.text_input(f"SIAPE Responsável {i+1}", key=f"lab_siape_{i}")
                 laboratorios.append({
                     "nome_lab": n_lab,
                     "unidade_lab": u_lab,
@@ -397,10 +414,10 @@ if arquivo_pdf:
         classificacoes_final = df_classif_edit.fillna("").to_dict(orient="records")
 
     # ==============================================================================
-    # 4. GERAÇÃO DE DOCUMENTOS (NUvem / ZIP)
+    # PASSO 4: GERAÇÃO DE DOCUMENTOS (NUVEM / ZIP)
     # ==============================================================================
     st.markdown("---")
-    st.markdown("### 💾 Gerar Documentos (Nuvem)")
+    st.markdown("### 4️⃣ Passo 4: Geração de Documentos")
     st.write("Ao clicar no botão abaixo, o sistema irá preencher todos os documentos na nuvem e preparar um arquivo .ZIP para você baixar.")
 
     if st.button("🚀 Processar Documentos"):
@@ -446,7 +463,6 @@ if arquivo_pdf:
             keywords_individuais = ["ch_dentro", "ch_fora", "conflito", "participante", "membro"]
             keywords_lab = ["lab", "laboratório", "laboratorio"]
             
-            # --- CRIAÇÃO DO ZIP EM MEMÓRIA RAM ---
             zip_buffer = io.BytesIO()
             with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
             
@@ -623,11 +639,9 @@ if arquivo_pdf:
                 st.success("🔥 Documentos gerados e empacotados com Sucesso Absoluto!")
                 st.warning("📝 **LEMBRETE:** Após baixar e descompactar o ZIP, todos os documentos estarão em **Word (.docx)** e **Excel (.xlsx)**. Você pode abri-los e editar qualquer texto normalmente no seu computador.")
             
-            # Salvar o ZIP pronto na memória do Streamlit
             st.session_state['zip_data'] = zip_buffer.getvalue()
             st.session_state['zip_name'] = f"{nome_pasta_principal}.zip"
 
-    # Botão de download à prova de bugs, que aparece após o arquivo estar pronto na memória
     if 'zip_data' in st.session_state:
         st.download_button(
             label="⬇️ CLIQUE AQUI PARA BAIXAR OS DOCUMENTOS (.ZIP)",
