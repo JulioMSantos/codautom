@@ -38,7 +38,7 @@ def limpar_texto_bloco(txt):
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="NAPbot - Gerador de documentos do NAP", layout="wide")
-st.title("NAPbot - Gerador de Documentos do NAP by Julio Maia")
+st.title("NAPbot - Gerador de Documentos do NAP por Julio Maia")
 
 # ==============================================================================
 # PASSO 1: SELEÇÃO DO PROCESSO
