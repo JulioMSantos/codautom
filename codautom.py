@@ -169,10 +169,12 @@ if arquivo_pdf:
             siape = match.group(1).strip()
             nome_bruto = match.group(2).strip()
             
-            for lixo in ["UNIDADES VINCULADAS", "CLASSIFICAÇÕES", "PLANO DE", "TIPO DE", "REGIÕES DE", "PARTICIPANTE VÍNCULO", "VÍNCULO CURSO"]:
+            # ATUALIZAÇÃO DA TESOURA: Elimina textos acidentalmente grudados no PDF
+            for lixo in ["UNIDADES VINCULADAS", "CLASSIFICAÇÕES", "PLANO DE", "TIPO DE", "REGIÕES DE", "PARTICIPANTE VÍNCULO", "VÍNCULO CURSO", "PARTICIPANTEVINCULO"]:
                 if lixo in nome_bruto:
                     nome_bruto = nome_bruto.split(lixo)[0].strip()
-            nome = re.sub(r'(?i)\s+(FUNÇÃO|FUNÇ|CURSO/LOTAÇÃO|\$\$\$|CH DENTRO).*', '', nome_bruto).strip()
+            nome = re.sub(r'(?i)(FUNÇÃO|FUNÇ|CURSO/LOTAÇÃO|\$\$\$|CH DENTRO|DENTROFORA|INÍCIOTÉRMINO).*', '', nome_bruto).strip()
+            nome = re.sub(r'(?i)PARTICIPANTEVINCULO.*', '', nome).strip()
 
             pos_inicio = match.end()
             pos_fim = matches_participantes[i+1].start() if i + 1 < len(matches_participantes) else pos_inicio + 400
@@ -421,226 +423,250 @@ if arquivo_pdf:
     st.write("Ao clicar no botão abaixo, o sistema irá preencher todos os documentos na nuvem e preparar um arquivo .ZIP para você baixar.")
 
     if st.button("🚀 Processar Documentos"):
-        logs = []
-        
-        if tipo_processo == "Acordo Global (AG)": pasta_alvo = f"Modelos/AG/{fund_sigla}" if status_fund == "Já definida" else "Modelos/AG/SEM"
-        elif tipo_processo == "Acordo de Parceria (AP)": pasta_alvo = f"Modelos/AP/{fund_sigla}" if status_fund == "Já definida" else "Modelos/AP/SEM"
-        else: pasta_alvo = "Modelos/ACT"
+        # Adiciona uma tela de carregamento visual gigante para o usuário
+        with st.spinner("⏳ Processando e gerando os documentos... Por favor, aguarde!"):
+            logs = []
+            
+            if tipo_processo == "Acordo Global (AG)": pasta_alvo = f"Modelos/AG/{fund_sigla}" if status_fund == "Já definida" else "Modelos/AG/SEM"
+            elif tipo_processo == "Acordo de Parceria (AP)": pasta_alvo = f"Modelos/AP/{fund_sigla}" if status_fund == "Já definida" else "Modelos/AP/SEM"
+            else: pasta_alvo = "Modelos/ACT"
 
-        ctx_global = {
-            "data_atual": data_extenso(datetime.now()), "dataatual": data_extenso(datetime.now()),
-            "nome_projeto": tit_proj, "nomeprojeto": tit_proj,
-            "titulo_projeto": tit_proj, "tituloprojeto": tit_proj,
-            "n_projeto": n_proj, "nprojeto": n_proj,
-            "classificacao": dados_extraidos["classificacao"], 
-            "nome_coord": c_g_n, "nomecoord": c_g_n,
-            "siape_coord": c_g_s, "siapecoord": c_g_s,
-            "nome_fiscal": f_nome, "nomefiscal": f_nome,
-            "fiscal": f_nome, 
-            "siape_fiscal": f_siape, "siapefiscal": f_siape,
-            "nome_coord_adm": nome_coord_adm, "nomecoordadm": nome_coord_adm,
-            "siape_adm": siape_coord_adm, "siapeadm": siape_coord_adm,
-            "membros": equipe_final, "objetivos": objetivos, "metas": metas, 
-            "justificativa": justificativa, "resultados": resultados,
-            "unidades": unidades_final, "regioes": regioes_final, 
-            "classificacoes": classificacoes_final, "nome_chefia": n_chefia, "nomechefia": n_chefia,
-            "empresa": empresa_input, "importancia_projeto": importancia, "importanciaprojeto": importancia,
-            "justificativa_fund": justificativa_fund, "justificativafund": justificativa_fund,
-            "diretor_unidade": diretor_unidade, "diretorunidade": diretor_unidade,
-            "siape_diretor": siape_diretor, "siapediretor": siape_diretor,
-            "plano_gestao": plano_gestao, "planogestao": plano_gestao,
-            "objetivo_estrategico": objetivo_estrategico, "objetivoestrategico": objetivo_estrategico
-        }
-        ctx_global.update(ctx_fundacao)
+            ctx_global = {
+                "data_atual": data_extenso(datetime.now()), "dataatual": data_extenso(datetime.now()),
+                "nome_projeto": tit_proj, "nomeprojeto": tit_proj,
+                "titulo_projeto": tit_proj, "tituloprojeto": tit_proj,
+                "n_projeto": n_proj, "nprojeto": n_proj,
+                "classificacao": dados_extraidos["classificacao"], 
+                "nome_coord": c_g_n, "nomecoord": c_g_n,
+                "siape_coord": c_g_s, "siapecoord": c_g_s,
+                "nome_fiscal": f_nome, "nomefiscal": f_nome,
+                "fiscal": f_nome, 
+                "siape_fiscal": f_siape, "siapefiscal": f_siape,
+                "nome_coord_adm": nome_coord_adm, "nomecoordadm": nome_coord_adm,
+                "siape_adm": siape_coord_adm, "siapeadm": siape_coord_adm,
+                "membros": equipe_final, "objetivos": objetivos, "metas": metas, 
+                "justificativa": justificativa, "resultados": resultados,
+                "unidades": unidades_final, "regioes": regioes_final, 
+                "classificacoes": classificacoes_final, "nome_chefia": n_chefia, "nomechefia": n_chefia,
+                "empresa": empresa_input, "importancia_projeto": importancia, "importanciaprojeto": importancia,
+                "justificativa_fund": justificativa_fund, "justificativafund": justificativa_fund,
+                "diretor_unidade": diretor_unidade, "diretorunidade": diretor_unidade,
+                "siape_diretor": siape_diretor, "siapediretor": siape_diretor,
+                "plano_gestao": plano_gestao, "planogestao": plano_gestao,
+                "objetivo_estrategico": objetivo_estrategico, "objetivoestrategico": objetivo_estrategico
+            }
+            ctx_global.update(ctx_fundacao)
 
-        if not os.path.exists(pasta_alvo):
-            st.error(f"❌ A pasta de modelos não foi encontrada: {pasta_alvo}")
-        else:
-            nome_pasta_principal = f"Documentos_Gerados_{fund_sigla}_{n_proj}"
-            nome_pasta_principal = re.sub(r'[\\/*?:"<>|]', "", nome_pasta_principal)
-            
-            arquivos_na_pasta = [f for f in os.listdir(pasta_alvo) if not f.startswith("~$")]
-            keywords_individuais = ["ch_dentro", "ch_fora", "conflito", "participante", "membro"]
-            keywords_lab = ["lab", "laboratório", "laboratorio"]
-            
-            zip_buffer = io.BytesIO()
-            with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
-            
-                # Processamento do Word (.docx)
-                for arquivo in arquivos_na_pasta:
-                    if arquivo.endswith(".docx"):
-                        caminho_arquivo = os.path.join(pasta_alvo, arquivo)
-                        nome_minusculo = arquivo.lower()
-                        is_individual = any(kw in nome_minusculo for kw in keywords_individuais)
-                        is_lab = any(kw in nome_minusculo for kw in keywords_lab)
-                        
-                        if is_individual:
-                            for membro in equipe_final:
-                                if not membro.get("Nome") or str(membro.get("Nome")).strip() == "": continue
-                                nome_limpo = re.sub(r'[^\w]', '_', str(membro.get("Nome")))[:40].strip('_')
-                                nome_doc_sem_ext = arquivo.replace(".docx", "")
-                                
-                                try:
-                                    doc_ind = DocxTemplate(caminho_arquivo)
-                                    ctx_membro = ctx_global.copy()
-                                    ctx_membro.update(membro) 
-                                    ctx_membro["participante"] = membro.get("Nome", "")
-                                    ctx_membro["siape"] = membro.get("SIAPE", "")
-                                    ctx_membro["cargo"] = membro.get("Função", "")
-                                    ctx_membro["ch_dentro"] = membro.get("CH_D", "0")
-                                    ctx_membro["chdentro"] = membro.get("CH_D", "0")
-                                    ctx_membro["ch_fora"] = membro.get("CH_F", "0")
-                                    ctx_membro["chfora"] = membro.get("CH_F", "0")
-                                    
-                                    doc_ind.render(ctx_membro)
-                                    doc_buffer = io.BytesIO()
-                                    doc_ind.save(doc_buffer)
-                                    zip_file.writestr(f"02_Documentos_Individuais/{nome_limpo}/{nome_limpo}_{nome_doc_sem_ext}.docx", doc_buffer.getvalue())
-                                except Exception as e:
-                                    logs.append(f"Erro em {arquivo} para {membro.get('Nome')}: {str(e)}")
-                                    
-                        elif is_lab:
-                            if num_labs > 0:
-                                for lab in laboratorios:
-                                    if not lab.get("nome_lab") or str(lab.get("nome_lab")).strip() == "": continue
-                                    nome_lab_limpo = re.sub(r'[^\w]', '_', str(lab.get("nome_lab")))[:40].strip('_')
+            if not os.path.exists(pasta_alvo):
+                st.error(f"❌ A pasta de modelos não foi encontrada: {pasta_alvo}")
+            else:
+                nome_pasta_principal = f"Documentos_Gerados_{fund_sigla}_{n_proj}"
+                nome_pasta_principal = re.sub(r'[\\/*?:"<>|]', "", nome_pasta_principal)
+                
+                arquivos_na_pasta = [f for f in os.listdir(pasta_alvo) if not f.startswith("~$")]
+                keywords_individuais = ["ch_dentro", "ch_fora", "conflito", "participante", "membro"]
+                keywords_lab = ["lab", "laboratório", "laboratorio"]
+                
+                zip_buffer = io.BytesIO()
+                with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+                
+                    # Processamento do Word (.docx)
+                    for arquivo in arquivos_na_pasta:
+                        if arquivo.endswith(".docx"):
+                            caminho_arquivo = os.path.join(pasta_alvo, arquivo)
+                            nome_minusculo = arquivo.lower()
+                            is_individual = any(kw in nome_minusculo for kw in keywords_individuais)
+                            is_lab = any(kw in nome_minusculo for kw in keywords_lab)
+                            
+                            if is_individual:
+                                for membro in equipe_final:
+                                    if not membro.get("Nome") or str(membro.get("Nome")).strip() == "": continue
+                                    nome_limpo = re.sub(r'[^\w]', '_', str(membro.get("Nome")))[:40].strip('_')
                                     nome_doc_sem_ext = arquivo.replace(".docx", "")
                                     
                                     try:
-                                        doc_lab = DocxTemplate(caminho_arquivo)
-                                        ctx_lab = ctx_global.copy()
-                                        ctx_lab.update(lab)
-                                        ctx_lab["nomelab"] = lab.get("nome_lab")
-                                        ctx_lab["nomeresplab"] = lab.get("nome_resp_lab")
-                                        ctx_lab["siaperesplab"] = lab.get("siape_resp_lab")
+                                        doc_ind = DocxTemplate(caminho_arquivo)
+                                        ctx_membro = ctx_global.copy()
+                                        ctx_membro.update(membro) 
+                                        ctx_membro["participante"] = membro.get("Nome", "")
+                                        ctx_membro["siape"] = membro.get("SIAPE", "")
+                                        ctx_membro["cargo"] = membro.get("Função", "")
+                                        ctx_membro["ch_dentro"] = membro.get("CH_D", "0")
+                                        ctx_membro["chdentro"] = membro.get("CH_D", "0")
+                                        ctx_membro["ch_fora"] = membro.get("CH_F", "0")
+                                        ctx_membro["chfora"] = membro.get("CH_F", "0")
                                         
-                                        doc_lab.render(ctx_lab)
+                                        doc_ind.render(ctx_membro)
                                         doc_buffer = io.BytesIO()
-                                        doc_lab.save(doc_buffer)
-                                        zip_file.writestr(f"03_Documentos_Laboratorios/{nome_lab_limpo}_{nome_doc_sem_ext}.docx", doc_buffer.getvalue())
+                                        doc_ind.save(doc_buffer)
+                                        zip_file.writestr(f"02_Documentos_Individuais/{nome_limpo}/{nome_limpo}_{nome_doc_sem_ext}.docx", doc_buffer.getvalue())
                                     except Exception as e:
-                                        logs.append(f"Erro em {arquivo} para {lab.get('nome_lab')}: {str(e)}")
+                                        logs.append(f"Erro em {arquivo} para {membro.get('Nome')}: {str(e)}")
                                         
-                        else:
-                            try:
-                                doc = DocxTemplate(caminho_arquivo)
-                                doc.render(ctx_global)
-                                doc_buffer = io.BytesIO()
-                                doc.save(doc_buffer)
-                                zip_file.writestr(f"01_Documentos_Gerais/{arquivo}", doc_buffer.getvalue())
-                            except Exception as e:
-                                logs.append(f"Erro ao processar arquivo geral {arquivo}: {str(e)}")
+                            elif is_lab:
+                                if num_labs > 0:
+                                    for lab in laboratorios:
+                                        if not lab.get("nome_lab") or str(lab.get("nome_lab")).strip() == "": continue
+                                        nome_lab_limpo = re.sub(r'[^\w]', '_', str(lab.get("nome_lab")))[:40].strip('_')
+                                        nome_doc_sem_ext = arquivo.replace(".docx", "")
+                                        
+                                        try:
+                                            doc_lab = DocxTemplate(caminho_arquivo)
+                                            ctx_lab = ctx_global.copy()
+                                            ctx_lab.update(lab)
+                                            ctx_lab["nomelab"] = lab.get("nome_lab")
+                                            ctx_lab["nomeresplab"] = lab.get("nome_resp_lab")
+                                            ctx_lab["siaperesplab"] = lab.get("siape_resp_lab")
+                                            
+                                            doc_lab.render(ctx_lab)
+                                            doc_buffer = io.BytesIO()
+                                            doc_lab.save(doc_buffer)
+                                            zip_file.writestr(f"03_Documentos_Laboratorios/{nome_lab_limpo}_{nome_doc_sem_ext}.docx", doc_buffer.getvalue())
+                                        except Exception as e:
+                                            logs.append(f"Erro em {arquivo} para {lab.get('nome_lab')}: {str(e)}")
+                                            
+                            else:
+                                try:
+                                    doc = DocxTemplate(caminho_arquivo)
+                                    doc.render(ctx_global)
+                                    doc_buffer = io.BytesIO()
+                                    doc.save(doc_buffer)
+                                    zip_file.writestr(f"01_Documentos_Gerais/{arquivo}", doc_buffer.getvalue())
+                                except Exception as e:
+                                    logs.append(f"Erro ao processar arquivo geral {arquivo}: {str(e)}")
 
-                # Processamento do Excel (.xlsx)
-                arq_excel = next((f for f in arquivos_na_pasta if f.endswith(".xlsx")), None)
-                if arq_excel:
-                    try:
-                        caminho_excel = os.path.join(pasta_alvo, arq_excel)
-                        wb = openpyxl.load_workbook(caminho_excel)
-                        ws = wb["Plano de Trabalho"] if "Plano de Trabalho" in wb.sheetnames else wb.worksheets[0]
-                        
-                        def escrever_excel(celula, valor):
-                            val_str = str(valor).strip() if valor is not None else ""
-                            if val_str in ["", "-", "None", "Não se aplica"]: val_str = None
-                            try:
-                                r_row, r_col = coordinate_to_tuple(celula)
-                                mesclado = False
-                                for merged_range in list(ws.merged_cells.ranges):
-                                    min_col, min_row, max_col, max_row = merged_range.bounds
-                                    if min_col <= r_col <= max_col and min_row <= r_row <= max_row:
-                                        mesclado = True
-                                        intervalo = str(merged_range)
-                                        ws.unmerge_cells(intervalo)
-                                        ws.cell(row=min_row, column=min_col).value = val_str
-                                        ws.merge_cells(intervalo)
-                                        return
-                                ws.cell(row=r_row, column=r_col).value = val_str
-                            except Exception as err:
-                                logs.append(f"Aviso na célula {celula}: {str(err)}")
-
-                        escrever_excel("C17", tit_proj)
-                        escrever_excel("C19", data_termino_edit)
-                        escrever_excel("C20", c_g_n)
-                        escrever_excel("C21", c_g_s)
-                        escrever_excel("C22", f_nome)
-                        escrever_excel("C23", f_siape)
-                        escrever_excel("C24", nome_coord_adm)
-                        escrever_excel("C25", siape_coord_adm)
-                        escrever_excel("C26", n_proj)
-                        escrever_excel("C27", dados_extraidos.get("classificacao", ""))
-                        escrever_excel("C28", tipo_processo)
-                        
-                        escrever_excel("A32", resumo)
-                        escrever_excel("A36", objetivos)
-                        escrever_excel("A40", justificativa)
-                        escrever_excel("A44", resultados)
-                        escrever_excel("C65", plano_gestao)
-                        escrever_excel("C66", objetivo_estrategico)
-                        escrever_excel("G70", inovacao_bool)
-                        escrever_excel("D71", inovacao_potencial)
-
-                        for idx, c in enumerate(classificacoes_final):
-                            l_c = 49 + idx
-                            if l_c > 63: break
-                            escrever_excel(f"A{l_c}", c.get("Tipo de Classificação", ""))
-                            escrever_excel(f"G{l_c}", c.get("Classificação", ""))
-
-                        for idx, u in enumerate(unidades_final):
-                            l_u = 76 + idx
-                            if l_u > 90: break
-                            escrever_excel(f"A{l_u}", u.get("Unidade", ""))
-                            escrever_excel(f"F{l_u}", u.get("Função", ""))
-                            escrever_excel(f"I{l_u}", u.get("Valor", ""))
-                            escrever_excel(f"K{l_u}", u.get("Início", ""))
-                            escrever_excel(f"L{l_u}", u.get("Término", ""))
-
-                        equipe_excel = [p for p in equipe_final if p.get("Função", "") != "Fiscal" and str(p.get("Nome", "")).strip() != ""]
-                        for idx, p in enumerate(equipe_excel):
-                            linha = 95 + idx
-                            escrever_excel(f"A{linha}", p.get("Nome", ""))
-                            escrever_excel(f"C{linha}", p.get("SIAPE", ""))
-                            escrever_excel(f"D{linha}", p.get("Vínculo", ""))
-                            escrever_excel(f"E{linha}", p.get("Lotação", ""))
-                            escrever_excel(f"F{linha}", p.get("Função", ""))
-                            escrever_excel(f"G{linha}", p.get("Bolsa", ""))
-                            escrever_excel(f"I{linha}", p.get("CH_D", ""))
-                            escrever_excel(f"J{linha}", p.get("CH_F", ""))
-                            escrever_excel(f"K{linha}", p.get("Início", ""))
-                            escrever_excel(f"L{linha}", p.get("Término", ""))
-
-                        for idx, r_reg in enumerate(regioes_final):
-                            l_r = 142 + idx
-                            if l_r > 184: break
-                            escrever_excel(f"A{l_r}", r_reg.get("Cidade", ""))
-                            escrever_excel(f"E{l_r}", r_reg.get("UF", ""))
-                            escrever_excel(f"G{l_r}", r_reg.get("País", ""))
-                            escrever_excel(f"I{l_r}", r_reg.get("Início", ""))
-                            escrever_excel(f"K{l_r}", r_reg.get("Término", ""))
-                        
-                        for idx, lab in enumerate(laboratorios):
-                            l_lab = 189 + idx
-                            if l_lab > 203: break
-                            if not lab.get("nome_lab") or str(lab.get("nome_lab")).strip() == "": continue
-                            escrever_excel(f"A{l_lab}", lab.get("nome_lab", ""))
-                            escrever_excel(f"F{l_lab}", lab.get("unidade_lab", ""))
-                            escrever_excel(f"I{l_lab}", lab.get("nome_resp_lab", ""))
-                            escrever_excel(f"L{l_lab}", lab.get("siape_resp_lab", ""))
+                    # Processamento do Excel (.xlsx)
+                    arq_excel = next((f for f in arquivos_na_pasta if f.endswith(".xlsx")), None)
+                    if arq_excel:
+                        try:
+                            caminho_excel = os.path.join(pasta_alvo, arq_excel)
+                            wb = openpyxl.load_workbook(caminho_excel)
+                            ws = wb["Plano de Trabalho"] if "Plano de Trabalho" in wb.sheetnames else wb.worksheets[0]
                             
-                        excel_buffer = io.BytesIO()
-                        wb.save(excel_buffer)
-                        zip_file.writestr(f"01_Documentos_Gerais/{arq_excel}", excel_buffer.getvalue())
-                    except Exception as e:
-                        logs.append(f"❌ Erro crítico no Excel Mestre: {str(e)}")
+                            def escrever_excel(celula, valor):
+                                val_str = str(valor).strip() if valor is not None else ""
+                                if val_str in ["", "-", "None", "Não se aplica"]: val_str = None
+                                try:
+                                    r_row, r_col = coordinate_to_tuple(celula)
+                                    mesclado = False
+                                    for merged_range in list(ws.merged_cells.ranges):
+                                        min_col, min_row, max_col, max_row = merged_range.bounds
+                                        if min_col <= r_col <= max_col and min_row <= r_row <= max_row:
+                                            mesclado = True
+                                            intervalo = str(merged_range)
+                                            ws.unmerge_cells(intervalo)
+                                            ws.cell(row=min_row, column=min_col).value = val_str
+                                            ws.merge_cells(intervalo)
+                                            return
+                                    ws.cell(row=r_row, column=r_col).value = val_str
+                                except Exception as err:
+                                    logs.append(f"Aviso na célula {celula}: {str(err)}")
 
-            if logs:
-                st.warning("⚠️ Foram gerados arquivos, mas ocorreram alguns avisos:")
-                for l in logs: st.error(l)
-            else:
-                st.success("🔥 Documentos gerados e empacotados com Sucesso Absoluto!")
-                st.warning("📝 **LEMBRETE:** Após baixar e descompactar o ZIP, todos os documentos estarão em **Word (.docx)** e **Excel (.xlsx)**. Você pode abri-los e editar qualquer texto normalmente no seu computador.")
-            
-            st.session_state['zip_data'] = zip_buffer.getvalue()
-            st.session_state['zip_name'] = f"{nome_pasta_principal}.zip"
+                            # BIFURCAÇÃO DA LÓGICA DO EXCEL: ACT vs AP/AG
+                            if tipo_processo == "Acordo de Cooperação Técnica (ACT)":
+                                escrever_excel("D3", tit_proj)
+                                escrever_excel("D4", n_proj)
+                                escrever_excel("H4", tipo_processo)
+                                escrever_excel("D5", data_termino_edit)
+                                escrever_excel("H5", dados_extraidos.get("classificacao", ""))
+                                
+                                escrever_excel("C7", c_g_n)
+                                escrever_excel("G7", c_g_s)
+                                escrever_excel("C8", f_nome)
+                                escrever_excel("G8", f_siape)
+                                escrever_excel("C9", nome_coord_adm)
+                                escrever_excel("G9", siape_coord_adm)
+                                
+                                escrever_excel("C13", empresa_input)
+                                
+                                escrever_excel("A24", resumo)
+                                escrever_excel("A30", objetivos)
+                                escrever_excel("A36", justificativa)
+                                
+                            else:
+                                escrever_excel("C17", tit_proj)
+                                escrever_excel("C19", data_termino_edit)
+                                escrever_excel("C20", c_g_n)
+                                escrever_excel("C21", c_g_s)
+                                escrever_excel("C22", f_nome)
+                                escrever_excel("C23", f_siape)
+                                escrever_excel("C24", nome_coord_adm)
+                                escrever_excel("C25", siape_coord_adm)
+                                escrever_excel("C26", n_proj)
+                                escrever_excel("C27", dados_extraidos.get("classificacao", ""))
+                                escrever_excel("C28", tipo_processo)
+                                
+                                escrever_excel("A32", resumo)
+                                escrever_excel("A36", objetivos)
+                                escrever_excel("A40", justificativa)
+                                escrever_excel("A44", resultados)
+                                escrever_excel("C65", plano_gestao)
+                                escrever_excel("C66", objetivo_estrategico)
+                                escrever_excel("G70", inovacao_bool)
+                                escrever_excel("D71", inovacao_potencial)
+
+                                for idx, c in enumerate(classificacoes_final):
+                                    l_c = 49 + idx
+                                    if l_c > 63: break
+                                    escrever_excel(f"A{l_c}", c.get("Tipo de Classificação", ""))
+                                    escrever_excel(f"G{l_c}", c.get("Classificação", ""))
+
+                                for idx, u in enumerate(unidades_final):
+                                    l_u = 76 + idx
+                                    if l_u > 90: break
+                                    escrever_excel(f"A{l_u}", u.get("Unidade", ""))
+                                    escrever_excel(f"F{l_u}", u.get("Função", ""))
+                                    escrever_excel(f"I{l_u}", u.get("Valor", ""))
+                                    escrever_excel(f"K{l_u}", u.get("Início", ""))
+                                    escrever_excel(f"L{l_u}", u.get("Término", ""))
+
+                                equipe_excel = [p for p in equipe_final if p.get("Função", "") != "Fiscal" and str(p.get("Nome", "")).strip() != ""]
+                                for idx, p in enumerate(equipe_excel):
+                                    linha = 95 + idx
+                                    escrever_excel(f"A{linha}", p.get("Nome", ""))
+                                    escrever_excel(f"C{linha}", p.get("SIAPE", ""))
+                                    escrever_excel(f"D{linha}", p.get("Vínculo", ""))
+                                    escrever_excel(f"E{linha}", p.get("Lotação", ""))
+                                    escrever_excel(f"F{linha}", p.get("Função", ""))
+                                    escrever_excel(f"G{linha}", p.get("Bolsa", ""))
+                                    escrever_excel(f"I{linha}", p.get("CH_D", ""))
+                                    escrever_excel(f"J{linha}", p.get("CH_F", ""))
+                                    escrever_excel(f"K{linha}", p.get("Início", ""))
+                                    escrever_excel(f"L{linha}", p.get("Término", ""))
+
+                                for idx, r_reg in enumerate(regioes_final):
+                                    l_r = 142 + idx
+                                    if l_r > 184: break
+                                    escrever_excel(f"A{l_r}", r_reg.get("Cidade", ""))
+                                    escrever_excel(f"E{l_r}", r_reg.get("UF", ""))
+                                    escrever_excel(f"G{l_r}", r_reg.get("País", ""))
+                                    escrever_excel(f"I{l_r}", r_reg.get("Início", ""))
+                                    escrever_excel(f"K{l_r}", r_reg.get("Término", ""))
+                                
+                                for idx, lab in enumerate(laboratorios):
+                                    l_lab = 189 + idx
+                                    if l_lab > 203: break
+                                    if not lab.get("nome_lab") or str(lab.get("nome_lab")).strip() == "": continue
+                                    escrever_excel(f"A{l_lab}", lab.get("nome_lab", ""))
+                                    escrever_excel(f"F{l_lab}", lab.get("unidade_lab", ""))
+                                    escrever_excel(f"I{l_lab}", lab.get("nome_resp_lab", ""))
+                                    escrever_excel(f"L{l_lab}", lab.get("siape_resp_lab", ""))
+                                
+                            excel_buffer = io.BytesIO()
+                            wb.save(excel_buffer)
+                            zip_file.writestr(f"01_Documentos_Gerais/{arq_excel}", excel_buffer.getvalue())
+                        except Exception as e:
+                            logs.append(f"❌ Erro crítico no Excel Mestre: {str(e)}")
+
+                if logs:
+                    st.warning("⚠️ Foram gerados arquivos, mas ocorreram alguns avisos:")
+                    for l in logs: st.error(l)
+                else:
+                    st.success("🔥 Documentos gerados e empacotados com Sucesso Absoluto!")
+                    st.warning("📝 **LEMBRETE:** Após baixar e descompactar o ZIP, todos os documentos estarão em **Word (.docx)** e **Excel (.xlsx)**. Você pode abri-los e editar qualquer texto normalmente no seu computador.")
+                
+                st.session_state['zip_data'] = zip_buffer.getvalue()
+                st.session_state['zip_name'] = f"{nome_pasta_principal}.zip"
 
     if 'zip_data' in st.session_state:
         st.download_button(
