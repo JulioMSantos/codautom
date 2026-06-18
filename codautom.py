@@ -170,13 +170,25 @@ if arquivo_pdf:
             nome_bruto = match.group(2).strip()
             
             # ====================================================================
-            # 🪓 GUILHOTINA DE TITÂNIO: QUEBRA O NOME NA PRIMEIRA PALAVRA LIXO
+            # 🪓 A GUILHOTINA ABSOLUTA (CORTE MATEMÁTICO POR ÍNDICE)
             # ====================================================================
-            padrao_corte_nome = r'(?i)(PARTICIPANTE|V[ÍI]NCULO|CURSO/LOTA[ÇC][ÃA]O|FUN[ÇC][ÃA]O|UNIDADES?\s*VINCULADAS|UNIDADES?|CLASSIFICA[ÇC][ÕO]ES|VALOR|IN[ÍI]CIO|T[ÉA]RMINO|T[ÉE]RM)'
-            nome = re.split(padrao_corte_nome, nome_bruto)[0].strip()
+            lixos_nome = [
+                "PARTICIPANTE", "VÍNCULO", "VINCULO", "CURSO/LOTAÇÃO", "CURSO", "LOTAÇÃO", 
+                "LOTACAO", "FUNÇÃO", "FUNCAO", "UNIDADES", "UNIDADE", "CLASSIFICAÇÕES", 
+                "CLASSIFICACOES", "VALOR", "INÍCIO", "INICIO", "TÉRMINO", "TERMINO", "TÉRM", "TERM"
+            ]
             
-            # Limpeza final para letras soltas que possam sobrar
-            nome = re.sub(r'(?i)\s+(T[ÉA]R?|IN[ÍI]C?|CH|DENTRO|FORA|\$\$\$|VALO?)+$', '', nome).strip()
+            nome_upper = nome_bruto.upper()
+            corte = len(nome_upper)
+            for lixo in lixos_nome:
+                idx = nome_upper.find(lixo)
+                if idx != -1 and idx < corte:
+                    corte = idx
+            
+            # Aplica o corte exato e remove sobras nas pontas
+            nome = nome_bruto[:corte].strip(" -/")
+            
+            # ====================================================================
 
             pos_inicio = match.end()
             pos_fim = matches_participantes[i+1].start() if i + 1 < len(matches_participantes) else pos_inicio + 400
@@ -233,11 +245,14 @@ if arquivo_pdf:
                 if palavras_extras_lotacao:
                     lotacao = lotacao + " " + " ".join(palavras_extras_lotacao)
                 
-                # ====================================================================
-                # 🪓 GUILHOTINA PARA A LOTAÇÃO (Impede de puxar a palavra CLASSIFICAÇÕES)
-                # ====================================================================
-                padrao_corte_lotacao = r'(?i)(CLASSIFICA[ÇC][ÕO]ES|TIPO|VALOR|IN[ÍI]CIO|T[ÉA]RMINO|T[ÉE]RM|PARTICIPANTES?)'
-                lotacao = re.split(padrao_corte_lotacao, lotacao)[0].strip("- ").strip()
+                # Guilhotina na Lotação
+                lotacao_upper = lotacao.upper()
+                corte_lot = len(lotacao_upper)
+                for lixo in ["CLASSIFICA", "TIPO", "VALOR", "INÍCIO", "INICIO", "TÉRM", "TERM", "PARTICIPANTE"]:
+                    idx = lotacao_upper.find(lixo)
+                    if idx != -1 and idx < corte_lot:
+                        corte_lot = idx
+                lotacao = lotacao[:corte_lot].strip("- /")
 
                 funcao = m_info.group(1).title()
                 bolsa = m_info.group(2).title()
