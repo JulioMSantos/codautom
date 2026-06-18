@@ -89,9 +89,7 @@ if arquivo_pdf:
         texto_limpo = re.sub(r'UNIVERSIDADE FEDERAL DE SANTA MARIA - UFSM', '', texto_limpo, flags=re.IGNORECASE)
         texto_limpo = re.sub(r'PROJETO NA ÍNTEGRA', '', texto_limpo, flags=re.IGNORECASE)
 
-        # ==============================================================================
-        # 🧹 O APAGADOR MÁGICO: Remove os cabeçalhos de tabela antes da extração
-        # ==============================================================================
+        # 🧹 O APAGADOR MÁGICO
         lixos_para_apagar = [
             r'(?i)PARTICIPANTE\s+V[ÍI]NCULO\s+CURSO/LOTA[ÇC][ÃA]O\s+FUN[ÇC][ÃA]O\s*\$\$\$',
             r'(?i)PARTICIPANTE\s+V[ÍI]NCULO\s+CURSO/LOTA[ÇC][ÃA]O\s+FUN[ÇC][ÃA]O',
@@ -183,13 +181,26 @@ if arquivo_pdf:
             nome_bruto = match.group(2).strip()
             
             # ====================================================================
-            # 🪓 GUILHOTINA BLINDADA PARA O NOME E LOTAÇÃO
-            # Corta impiedosamente qualquer texto a partir de palavras-chave
+            # 🪓 BARREIRA DE CONCRETO PARA O NOME
+            # Procura palavra por palavra e faz o corte matematicamente preciso
             # ====================================================================
-            padrao_corte = r'(?i)(UNIDADES?\s*VINCULADAS|CLASSIFICA[ÇC][ÕO]ES|PARTICIPANTES?|V[ÍI]NCULO|CURSO/LOTA[ÇC][ÃA]O|LOTA[ÇC][ÃA]O|FUN[ÇC][ÃA]O|CH\s*DENTRO|OBSERVA[ÇC][ÃA]O|TIPO\s*DE\s*CLASSIFICA[ÇC][ÃA]O)'
+            nome_limpo = re.sub(r'\s+', ' ', nome_bruto).strip()
+            corte_idx = len(nome_limpo)
             
-            nome = re.split(padrao_corte, nome_bruto)[0].strip()
-            nome = re.sub(r'(?i)\s+(T[ÉA]R?|IN[ÍI]C?|VALO?|CH|DENTRO|FORA|\$\$\$)+$', '', nome).strip("- /")
+            palavras_corte = [
+                "VÍNCULO", "VINCULO", "CURSO", "LOTAÇÃO", "LOTACAO", 
+                "FUNÇÃO", "FUNCAO", "UNIDADE", "CLASSIFICA", "PARTICIPANTE", 
+                "CH DENTRO", "CH FORA", "INÍCIO", "INICIO", "TÉRMINO", "TERMINO", 
+                "DEPARTAMENTO", "OBSERVA", "VALOR", "TIPO", "$$$"
+            ]
+            
+            for p in palavras_corte:
+                idx = nome_limpo.upper().find(p)
+                if idx != -1 and idx < corte_idx:
+                    corte_idx = idx
+                    
+            nome = nome_limpo[:corte_idx].strip(" -/")
+            # ====================================================================
 
             pos_inicio = match.end()
             pos_fim = matches_participantes[i+1].start() if i + 1 < len(matches_participantes) else pos_inicio + 400
@@ -219,7 +230,14 @@ if arquivo_pdf:
                         partes_nome_perdidas.append(w)
                 
                 if partes_nome_perdidas:
-                    nome = nome + " " + " ".join(partes_nome_perdidas)
+                    nome_final_teste = nome + " " + " ".join(partes_nome_perdidas)
+                    # Passa a barreira de novo caso a palavra perdida seja um lixo
+                    corte_idx_2 = len(nome_final_teste)
+                    for p in palavras_corte:
+                        idx = nome_final_teste.upper().find(p)
+                        if idx != -1 and idx < corte_idx_2:
+                            corte_idx_2 = idx
+                    nome = nome_final_teste[:corte_idx_2].strip(" -/")
                 
                 vinculo_encontrado = False
                 for prefixo in prefixos_ufsm:
@@ -246,9 +264,24 @@ if arquivo_pdf:
                 if palavras_extras_lotacao:
                     lotacao = lotacao + " " + " ".join(palavras_extras_lotacao)
                 
-                # Guilhotina caindo sobre a lotação também
-                padrao_corte_lotacao = r'(?i)(UNIDADES?\s*VINCULADAS|CLASSIFICA[ÇC][ÕO]ES|PARTICIPANTES?|FUN[ÇC][ÃA]O|VALOR|IN[ÍI]CIO|T[ÉA]RMINO|OBSERVA[ÇC][ÃA]O|TIPO\s*DE\s*CLASSIFICA[ÇC][ÃA]O|\$\$\$)'
-                lotacao = re.split(padrao_corte_lotacao, lotacao)[0].strip("- /")
+                # ====================================================================
+                # 🪓 BARREIRA DE CONCRETO PARA A LOTAÇÃO
+                # ====================================================================
+                lotacao_limpa = re.sub(r'\s+', ' ', lotacao).strip()
+                corte_lot = len(lotacao_limpa)
+                
+                palavras_corte_lotacao = [
+                    "UNIDADE", "CLASSIFICA", "PARTICIPANTE", "FUNÇÃO", "FUNCAO", 
+                    "VALOR", "INÍCIO", "INICIO", "TÉRMINO", "TERMINO", "OBSERVA", "TIPO", "$$$"
+                ]
+                
+                for p in palavras_corte_lotacao:
+                    idx = lotacao_limpa.upper().find(p)
+                    if idx != -1 and idx < corte_lot:
+                        corte_lot = idx
+                        
+                lotacao = lotacao_limpa[:corte_lot].strip(" -/")
+                # ====================================================================
 
                 funcao = m_info.group(1).title()
                 bolsa = m_info.group(2).title()
