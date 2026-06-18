@@ -89,6 +89,20 @@ if arquivo_pdf:
         texto_limpo = re.sub(r'UNIVERSIDADE FEDERAL DE SANTA MARIA - UFSM', '', texto_limpo, flags=re.IGNORECASE)
         texto_limpo = re.sub(r'PROJETO NA ÍNTEGRA', '', texto_limpo, flags=re.IGNORECASE)
 
+        # ==============================================================================
+        # 🧹 O APAGADOR MÁGICO: Remove os cabeçalhos de tabela antes da extração
+        # ==============================================================================
+        lixos_para_apagar = [
+            r'(?i)PARTICIPANTE\s+V[ÍI]NCULO\s+CURSO/LOTA[ÇC][ÃA]O\s+FUN[ÇC][ÃA]O\s*\$\$\$',
+            r'(?i)PARTICIPANTE\s+V[ÍI]NCULO\s+CURSO/LOTA[ÇC][ÃA]O\s+FUN[ÇC][ÃA]O',
+            r'(?i)CH\s+DENTRO\s+CH\s+FORA\s+IN[ÍI]CIO\s+T[ÉE]RMINO\s+OBSERVA[ÇC][ÃA]O',
+            r'(?i)UNIDADE\s+FUN[ÇC][ÃA]O\s+VALOR\s+IN[ÍI]CIO\s+T[ÉE]RMINO',
+            r'(?i)TIPO\s+DE\s+CLASSIFICA[ÇC][ÃA]O\s+CLASSIFICA[ÇC][ÃA]O'
+        ]
+        for lixo in lixos_para_apagar:
+            texto_limpo = re.sub(lixo, ' ', texto_limpo)
+        # ==============================================================================
+
         for sigla in ["FATEC", "FUNDEP", "FAURGS", "FDMS"]:
             if re.search(r'\b' + sigla + r'\b', texto_limpo, re.IGNORECASE):
                 dados_extraidos["fundacao_sugerida"] = sigla
@@ -164,31 +178,14 @@ if arquivo_pdf:
                 if len(line) > 5:
                     dados_extraidos["classificacoes_raw"].append({"Tipo de Classificação": line, "Classificação": ""})
 
-        matches_participantes = list(re.finditer(r'(\d{5,15})\s*-\s*([A-ZÀ-Ÿ\s/]+?)\s*(?=[A-ZÀ-Ÿ][a-zà-ÿ]|UNIDADES VINCULADAS|CLASSIFICAÇÕES|$)', texto_limpo))
+        matches_participantes = list(re.finditer(r'(\d{5,15})\s*-\s*([A-ZÀ-Ÿ\s]+?)\s*(?=[A-ZÀ-Ÿ][a-zà-ÿ]|UNIDADES VINCULADAS|CLASSIFICAÇÕES|$)', texto_limpo))
         for i, match in enumerate(matches_participantes):
             siape = match.group(1).strip()
             nome_bruto = match.group(2).strip()
             
-            # ====================================================================
-            # 🪓 A GUILHOTINA ABSOLUTA (CORTE MATEMÁTICO POR ÍNDICE)
-            # ====================================================================
-            lixos_nome = [
-                "PARTICIPANTE", "VÍNCULO", "VINCULO", "CURSO/LOTAÇÃO", "CURSO", "LOTAÇÃO", 
-                "LOTACAO", "FUNÇÃO", "FUNCAO", "UNIDADES", "UNIDADE", "CLASSIFICAÇÕES", 
-                "CLASSIFICACOES", "VALOR", "INÍCIO", "INICIO", "TÉRMINO", "TERMINO", "TÉRM", "TERM"
-            ]
-            
-            nome_upper = nome_bruto.upper()
-            corte = len(nome_upper)
-            for lixo in lixos_nome:
-                idx = nome_upper.find(lixo)
-                if idx != -1 and idx < corte:
-                    corte = idx
-            
-            # Aplica o corte exato e remove sobras nas pontas
-            nome = nome_bruto[:corte].strip(" -/")
-            
-            # ====================================================================
+            # Limpeza final de segurança (apenas para resquícios)
+            nome = re.split(r'(?i)(UNIDADES\s*VINCULADAS|CLASSIFICA[ÇC][ÕO]ES)', nome_bruto)[0].strip()
+            nome = re.sub(r'(?i)\s+(T[ÉA]R?|IN[ÍI]C?|VALO?|CH|DENTRO|FORA|\$\$\$|PARTICIPANTES?)+$', '', nome).strip("- /")
 
             pos_inicio = match.end()
             pos_fim = matches_participantes[i+1].start() if i + 1 < len(matches_participantes) else pos_inicio + 400
@@ -245,14 +242,7 @@ if arquivo_pdf:
                 if palavras_extras_lotacao:
                     lotacao = lotacao + " " + " ".join(palavras_extras_lotacao)
                 
-                # Guilhotina na Lotação
-                lotacao_upper = lotacao.upper()
-                corte_lot = len(lotacao_upper)
-                for lixo in ["CLASSIFICA", "TIPO", "VALOR", "INÍCIO", "INICIO", "TÉRM", "TERM", "PARTICIPANTE"]:
-                    idx = lotacao_upper.find(lixo)
-                    if idx != -1 and idx < corte_lot:
-                        corte_lot = idx
-                lotacao = lotacao[:corte_lot].strip("- /")
+                lotacao = re.split(r'(?i)(CLASSIFICA|TIPO|VALOR|IN[ÍI]CIO|T[ÉA]R|PARTICIP)', lotacao)[0].strip("- /")
 
                 funcao = m_info.group(1).title()
                 bolsa = m_info.group(2).title()
