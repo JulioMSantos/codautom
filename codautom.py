@@ -101,7 +101,6 @@ if arquivo_pdf:
         ]
         for lixo in lixos_para_apagar:
             texto_limpo = re.sub(lixo, ' ', texto_limpo)
-        # ==============================================================================
 
         for sigla in ["FATEC", "FUNDEP", "FAURGS", "FDMS"]:
             if re.search(r'\b' + sigla + r'\b', texto_limpo, re.IGNORECASE):
@@ -183,9 +182,14 @@ if arquivo_pdf:
             siape = match.group(1).strip()
             nome_bruto = match.group(2).strip()
             
-            # Limpeza final de segurança (apenas para resquícios)
-            nome = re.split(r'(?i)(UNIDADES\s*VINCULADAS|CLASSIFICA[ÇC][ÕO]ES)', nome_bruto)[0].strip()
-            nome = re.sub(r'(?i)\s+(T[ÉA]R?|IN[ÍI]C?|VALO?|CH|DENTRO|FORA|\$\$\$|PARTICIPANTES?)+$', '', nome).strip("- /")
+            # ====================================================================
+            # 🪓 GUILHOTINA BLINDADA PARA O NOME E LOTAÇÃO
+            # Corta impiedosamente qualquer texto a partir de palavras-chave
+            # ====================================================================
+            padrao_corte = r'(?i)(UNIDADES?\s*VINCULADAS|CLASSIFICA[ÇC][ÕO]ES|PARTICIPANTES?|V[ÍI]NCULO|CURSO/LOTA[ÇC][ÃA]O|LOTA[ÇC][ÃA]O|FUN[ÇC][ÃA]O|CH\s*DENTRO|OBSERVA[ÇC][ÃA]O|TIPO\s*DE\s*CLASSIFICA[ÇC][ÃA]O)'
+            
+            nome = re.split(padrao_corte, nome_bruto)[0].strip()
+            nome = re.sub(r'(?i)\s+(T[ÉA]R?|IN[ÍI]C?|VALO?|CH|DENTRO|FORA|\$\$\$)+$', '', nome).strip("- /")
 
             pos_inicio = match.end()
             pos_fim = matches_participantes[i+1].start() if i + 1 < len(matches_participantes) else pos_inicio + 400
@@ -242,7 +246,9 @@ if arquivo_pdf:
                 if palavras_extras_lotacao:
                     lotacao = lotacao + " " + " ".join(palavras_extras_lotacao)
                 
-                lotacao = re.split(r'(?i)(CLASSIFICA|TIPO|VALOR|IN[ÍI]CIO|T[ÉA]R|PARTICIP)', lotacao)[0].strip("- /")
+                # Guilhotina caindo sobre a lotação também
+                padrao_corte_lotacao = r'(?i)(UNIDADES?\s*VINCULADAS|CLASSIFICA[ÇC][ÕO]ES|PARTICIPANTES?|FUN[ÇC][ÃA]O|VALOR|IN[ÍI]CIO|T[ÉA]RMINO|OBSERVA[ÇC][ÃA]O|TIPO\s*DE\s*CLASSIFICA[ÇC][ÃA]O|\$\$\$)'
+                lotacao = re.split(padrao_corte_lotacao, lotacao)[0].strip("- /")
 
                 funcao = m_info.group(1).title()
                 bolsa = m_info.group(2).title()
