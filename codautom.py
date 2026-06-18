@@ -164,18 +164,28 @@ if arquivo_pdf:
                 if len(line) > 5:
                     dados_extraidos["classificacoes_raw"].append({"Tipo de Classificação": line, "Classificação": ""})
 
+        # --- LISTA DE PALAVRAS DA GUILHOTINA ---
+        lixos_gerais = [
+            "PARTICIPANTE", "VÍNCULO", "VINCULO", "CURSO/LOTAÇÃO", "CURSO", "LOTAÇÃO", "LOTACAO", 
+            "FUNÇÃO", "FUNCAO", "UNIDADES VINCULADAS", "UNIDADES", "UNIDADE", "CLASSIFICAÇÕES", 
+            "CLASSIFICACOES", "VALOR", "INÍCIO", "INICIO", "TÉRMINO", "TERMINO", "TIPO CLASSIFICAÇÃO", 
+            "PLANO DE", "REGIÕES", "REGIOES", "\$\$\$"
+        ]
+
         matches_participantes = list(re.finditer(r'(\d{5,15})\s*-\s*([A-ZÀ-Ÿ\s]+?)\s*(?=[A-ZÀ-Ÿ][a-zà-ÿ]|UNIDADES VINCULADAS|CLASSIFICAÇÕES|$)', texto_limpo))
         for i, match in enumerate(matches_participantes):
             siape = match.group(1).strip()
             nome_bruto = match.group(2).strip()
             
-            # --- TESOURA SUPREMA PARA LIMPEZA DOS NOMES ---
-            padrao_corte_principal = r'(?i)(PARTICIPANTE\s*V[ÍI]NCULO|UNIDADES\s*VINCULADAS|CLASSIFICA[ÇC][ÕO]ES|PLANO\s*DE|REGI[ÕO]ES\s*DE|TIPO\s*DE)'
-            nome_bruto = re.split(padrao_corte_principal, nome_bruto)[0].strip()
+            # Aplica a Guilhotina no Nome
+            for lixo in lixos_gerais:
+                match_lixo = re.search(rf'(?i){lixo}', nome_bruto)
+                if match_lixo:
+                    nome_bruto = nome_bruto[:match_lixo.start()]
             
-            # Remove palavras residuais do final da string
-            nome = re.sub(r'(?i)\s+(CURSO/LOTA[ÇC][ÃA]O|FUN[ÇC][ÃA]O|FUN[ÇC]|UNIDADE|VALOR|IN[ÍI]CIO|T[ÉA]RMINO|T[ÉE]|\$\$\$|CH\s*DENTRO|DENTROFORA|IN[ÍI]CIOT[ÉE]RMINO)+.*$', '', nome_bruto).strip()
-            # -----------------------------------------------
+            nome = nome_bruto.strip()
+            # Remove pedaços de palavras cortadas no fim do nome (Ex: TÉ, INÍ, CH DENTRO)
+            nome = re.sub(r'(?i)\s+(T[ÉA]R?|IN[ÍI]C?|CH|DENTRO|FORA|\$\$\$|VALO?)+$', '', nome).strip()
 
             pos_inicio = match.end()
             pos_fim = matches_participantes[i+1].start() if i + 1 < len(matches_participantes) else pos_inicio + 400
@@ -232,6 +242,12 @@ if arquivo_pdf:
                 if palavras_extras_lotacao:
                     lotacao = lotacao + " " + " ".join(palavras_extras_lotacao)
                 
+                # Aplica a Guilhotina na Lotação também
+                for lixo in lixos_gerais:
+                    match_lixo = re.search(rf'(?i){lixo}', lotacao)
+                    if match_lixo:
+                        lotacao = lotacao[:match_lixo.start()]
+
                 lotacao = lotacao.strip("- ").strip()
 
                 funcao = m_info.group(1).title()
