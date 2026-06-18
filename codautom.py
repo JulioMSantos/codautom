@@ -37,8 +37,8 @@ def limpar_texto_bloco(txt):
     return txt_final.strip()
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
-st.set_page_config(page_title="NAPbot - Gerador de documentos do NAP", layout="wide")
-st.title("NAPbot - Gerador de Documentos do NAP por Julio Maia")
+st.set_page_config(page_title="Raichu Pro", layout="wide")
+st.title("Raichu Pro ⚡")
 
 # ==============================================================================
 # PASSO 1: SELEÇÃO DO PROCESSO
@@ -51,7 +51,7 @@ tipo_processo = st.radio(
     horizontal=True
 )
 
-arquivo_pdf = st.file_uploader("Suba o Relatório do Projeto do GAP (PDF)", type=["pdf"])
+arquivo_pdf = st.file_uploader("Insira o seu relatório do projeto", type=["pdf"])
 
 fundacoes_dados = {
     "FATEC": {"fundacao": "FATEC - Fundação de Apoio à Tecnologia e Ciência", "sigla_fundacao": "FATEC"},
@@ -169,12 +169,13 @@ if arquivo_pdf:
             siape = match.group(1).strip()
             nome_bruto = match.group(2).strip()
             
-            # ATUALIZAÇÃO DA TESOURA: Elimina textos acidentalmente grudados no PDF
-            for lixo in ["UNIDADES VINCULADAS", "CLASSIFICAÇÕES", "PLANO DE", "TIPO DE", "REGIÕES DE", "PARTICIPANTE VÍNCULO", "VÍNCULO CURSO", "PARTICIPANTEVINCULO"]:
-                if lixo in nome_bruto:
-                    nome_bruto = nome_bruto.split(lixo)[0].strip()
-            nome = re.sub(r'(?i)(FUNÇÃO|FUNÇ|CURSO/LOTAÇÃO|\$\$\$|CH DENTRO|DENTROFORA|INÍCIOTÉRMINO).*', '', nome_bruto).strip()
-            nome = re.sub(r'(?i)PARTICIPANTEVINCULO.*', '', nome).strip()
+            # --- TESOURA SUPREMA PARA LIMPEZA DOS NOMES ---
+            padrao_corte_principal = r'(?i)(PARTICIPANTE\s*V[ÍI]NCULO|UNIDADES\s*VINCULADAS|CLASSIFICA[ÇC][ÕO]ES|PLANO\s*DE|REGI[ÕO]ES\s*DE|TIPO\s*DE)'
+            nome_bruto = re.split(padrao_corte_principal, nome_bruto)[0].strip()
+            
+            # Remove palavras residuais do final da string
+            nome = re.sub(r'(?i)\s+(CURSO/LOTA[ÇC][ÃA]O|FUN[ÇC][ÃA]O|FUN[ÇC]|UNIDADE|VALOR|IN[ÍI]CIO|T[ÉA]RMINO|T[ÉE]|\$\$\$|CH\s*DENTRO|DENTROFORA|IN[ÍI]CIOT[ÉE]RMINO)+.*$', '', nome_bruto).strip()
+            # -----------------------------------------------
 
             pos_inicio = match.end()
             pos_fim = matches_participantes[i+1].start() if i + 1 < len(matches_participantes) else pos_inicio + 400
@@ -423,7 +424,6 @@ if arquivo_pdf:
     st.write("Ao clicar no botão abaixo, o sistema irá preencher todos os documentos na nuvem e preparar um arquivo .ZIP para você baixar.")
 
     if st.button("🚀 Processar Documentos"):
-        # Adiciona uma tela de carregamento visual gigante para o usuário
         with st.spinner("⏳ Processando e gerando os documentos... Por favor, aguarde!"):
             logs = []
             
@@ -562,7 +562,6 @@ if arquivo_pdf:
                                 except Exception as err:
                                     logs.append(f"Aviso na célula {celula}: {str(err)}")
 
-                            # BIFURCAÇÃO DA LÓGICA DO EXCEL: ACT vs AP/AG
                             if tipo_processo == "Acordo de Cooperação Técnica (ACT)":
                                 escrever_excel("D3", tit_proj)
                                 escrever_excel("D4", n_proj)
@@ -675,4 +674,10 @@ if arquivo_pdf:
             file_name=st.session_state['zip_name'],
             mime="application/zip",
             type="primary"
-        ) 
+        )
+
+# ==============================================================================
+# ASSINATURA E CRÉDITOS DO DESENVOLVEDOR
+# ==============================================================================
+st.markdown("<br><hr>", unsafe_allow_html=True)
+st.markdown("<div style='text-align: center; color: #888888; padding: 10px; font-size: 14px;'>⚡ <b>Raichu Pro</b> | Desenvolvido por Julio Maia 👨‍💻</div>", unsafe_allow_html=True)
