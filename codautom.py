@@ -162,13 +162,13 @@ if arquivo_pdf:
         pot = extrair_bloco(r'POTENCIAL DE INOVAÇÃO DO PROJETO', [r'REGIÕES DE ATUAÇÃO', r'UNIDADES VINCULADAS', r'5 - UNIDADES'])
         dados_extraidos["inovacao_potencial"] = limpar_texto_bloco(pot)
 
-        # 🎯 ALVO CORRIGIDO: Agora usa 'CLASSIFICAÇÕES' para achar a tabela
         classif_blk = extrair_bloco(r'CLASSIFICAÇÕES', [r'PLANO DE GESTÃO'])
         for line in classif_blk.split('\n'):
             line = line.strip()
-            # Ignorando as palavras-chave que podem sobrar do cabeçalho
             if not line or "TIPO DE CLASSIFICAÇÃO" in line.upper() or line.upper() == "CLASSIFICAÇÃO" or "CLASSIFICAÇÕES" in line.upper(): continue
-            m = re.search(r'\s+(\d{1,2}\.\d.*|\d{1,2}\s+-.*)', line)
+            
+            # 🎯 ATUALIZAÇÃO MATEMÁTICA: Agora aceita até 5 dígitos no número (Ex: 271)
+            m = re.search(r'\s+(\d{1,5}\.\d.*|\d{1,5}\s+-.*)', line)
             if m:
                 tipo = line[:m.start()].strip()
                 valor = line[m.start():].strip()
@@ -182,7 +182,6 @@ if arquivo_pdf:
             siape = match.group(1).strip()
             nome_bruto = match.group(2).strip()
             
-            # 🪓 BARREIRA DE CONCRETO PARA O NOME
             nome_limpo = re.sub(r'\s+', ' ', nome_bruto).strip()
             corte_idx = len(nome_limpo)
             
@@ -261,7 +260,6 @@ if arquivo_pdf:
                 if palavras_extras_lotacao:
                     lotacao = lotacao + " " + " ".join(palavras_extras_lotacao)
                 
-                # 🪓 BARREIRA DE CONCRETO PARA A LOTAÇÃO
                 lotacao_limpa = re.sub(r'\s+', ' ', lotacao).strip()
                 corte_lot = len(lotacao_limpa)
                 
