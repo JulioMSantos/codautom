@@ -162,10 +162,12 @@ if arquivo_pdf:
         pot = extrair_bloco(r'POTENCIAL DE INOVAÇÃO DO PROJETO', [r'REGIÕES DE ATUAÇÃO', r'UNIDADES VINCULADAS', r'5 - UNIDADES'])
         dados_extraidos["inovacao_potencial"] = limpar_texto_bloco(pot)
 
-        classif_blk = extrair_bloco(r'TIPO DE CLASSIFICAÇÃO\s*CLASSIFICAÇÃO', [r'PLANO DE GESTÃO'])
+        # 🎯 ALVO CORRIGIDO: Agora usa 'CLASSIFICAÇÕES' para achar a tabela
+        classif_blk = extrair_bloco(r'CLASSIFICAÇÕES', [r'PLANO DE GESTÃO'])
         for line in classif_blk.split('\n'):
             line = line.strip()
-            if not line or "TIPO DE CLASSIFICAÇÃO" in line.upper() or line.upper() == "CLASSIFICAÇÃO": continue
+            # Ignorando as palavras-chave que podem sobrar do cabeçalho
+            if not line or "TIPO DE CLASSIFICAÇÃO" in line.upper() or line.upper() == "CLASSIFICAÇÃO" or "CLASSIFICAÇÕES" in line.upper(): continue
             m = re.search(r'\s+(\d{1,2}\.\d.*|\d{1,2}\s+-.*)', line)
             if m:
                 tipo = line[:m.start()].strip()
@@ -180,10 +182,7 @@ if arquivo_pdf:
             siape = match.group(1).strip()
             nome_bruto = match.group(2).strip()
             
-            # ====================================================================
             # 🪓 BARREIRA DE CONCRETO PARA O NOME
-            # Procura palavra por palavra e faz o corte matematicamente preciso
-            # ====================================================================
             nome_limpo = re.sub(r'\s+', ' ', nome_bruto).strip()
             corte_idx = len(nome_limpo)
             
@@ -200,7 +199,6 @@ if arquivo_pdf:
                     corte_idx = idx
                     
             nome = nome_limpo[:corte_idx].strip(" -/")
-            # ====================================================================
 
             pos_inicio = match.end()
             pos_fim = matches_participantes[i+1].start() if i + 1 < len(matches_participantes) else pos_inicio + 400
@@ -231,7 +229,6 @@ if arquivo_pdf:
                 
                 if partes_nome_perdidas:
                     nome_final_teste = nome + " " + " ".join(partes_nome_perdidas)
-                    # Passa a barreira de novo caso a palavra perdida seja um lixo
                     corte_idx_2 = len(nome_final_teste)
                     for p in palavras_corte:
                         idx = nome_final_teste.upper().find(p)
@@ -264,9 +261,7 @@ if arquivo_pdf:
                 if palavras_extras_lotacao:
                     lotacao = lotacao + " " + " ".join(palavras_extras_lotacao)
                 
-                # ====================================================================
                 # 🪓 BARREIRA DE CONCRETO PARA A LOTAÇÃO
-                # ====================================================================
                 lotacao_limpa = re.sub(r'\s+', ' ', lotacao).strip()
                 corte_lot = len(lotacao_limpa)
                 
@@ -281,7 +276,6 @@ if arquivo_pdf:
                         corte_lot = idx
                         
                 lotacao = lotacao_limpa[:corte_lot].strip(" -/")
-                # ====================================================================
 
                 funcao = m_info.group(1).title()
                 bolsa = m_info.group(2).title()
