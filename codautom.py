@@ -39,6 +39,24 @@ def limpar_texto_bloco(txt):
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="Raichu Pro", layout="wide")
 st.title("Raichu Pro ⚡")
+# --- ESTILIZAÇÃO CUSTOMIZADA (CSS) ---
+st.markdown(
+    """
+    <style>
+    /* Aumenta a fonte do título "Selecione o Tipo de Processo:" */
+    div[data-testid="stRadio"] > label {
+        font-size: 20px !important;
+        font-weight: bold !important;
+    }
+    
+    /* Aumenta a fonte das opções de escolha (AP, CG, ACT) */
+    div[role="radiogroup"] p {
+        font-size: 18px !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
 
 # ==============================================================================
 # PASSO 1: SELEÇÃO DO PROCESSO
