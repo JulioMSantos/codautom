@@ -46,7 +46,7 @@ st.title("Raichu Pro ⚡")
 st.markdown("### 1️⃣ Passo 1: Seleção do Processo e Relatório")
 tipo_processo = st.radio(
     "Selecione o Tipo de Processo:",
-    ["Acordo de Parceria (AP)", "Acordo Global (AG)", "Acordo de Cooperação Técnica (ACT)"],
+    ["Acordo de Parceria (AP)", "Contrato Global (CG)", "Acordo de Cooperação Técnica (ACT)"],
     index=1,
     horizontal=True
 )
@@ -167,7 +167,6 @@ if arquivo_pdf:
             line = line.strip()
             if not line or "TIPO DE CLASSIFICAÇÃO" in line.upper() or line.upper() == "CLASSIFICAÇÃO" or "CLASSIFICAÇÕES" in line.upper(): continue
             
-            # 🎯 ATUALIZAÇÃO MATEMÁTICA: Agora aceita até 5 dígitos no número (Ex: 271)
             m = re.search(r'\s+(\d{1,5}\.\d.*|\d{1,5}\s+-.*)', line)
             if m:
                 tipo = line[:m.start()].strip()
@@ -182,6 +181,7 @@ if arquivo_pdf:
             siape = match.group(1).strip()
             nome_bruto = match.group(2).strip()
             
+            # 🪓 BARREIRA DE CONCRETO PARA O NOME
             nome_limpo = re.sub(r'\s+', ' ', nome_bruto).strip()
             corte_idx = len(nome_limpo)
             
@@ -260,6 +260,7 @@ if arquivo_pdf:
                 if palavras_extras_lotacao:
                     lotacao = lotacao + " " + " ".join(palavras_extras_lotacao)
                 
+                # 🪓 BARREIRA DE CONCRETO PARA A LOTAÇÃO
                 lotacao_limpa = re.sub(r'\s+', ' ', lotacao).strip()
                 corte_lot = len(lotacao_limpa)
                 
@@ -468,7 +469,8 @@ if arquivo_pdf:
         with st.spinner("⏳ Processando e gerando os documentos... Por favor, aguarde!"):
             logs = []
             
-            if tipo_processo == "Acordo Global (AG)": pasta_alvo = f"Modelos/AG/{fund_sigla}" if status_fund == "Já definida" else "Modelos/AG/SEM"
+            # 🎯 ATUALIZAÇÃO DA LÓGICA DE PASTAS COM O NOVO TERMO
+            if tipo_processo == "Contrato Global (CG)": pasta_alvo = f"Modelos/AG/{fund_sigla}" if status_fund == "Já definida" else "Modelos/AG/SEM"
             elif tipo_processo == "Acordo de Parceria (AP)": pasta_alvo = f"Modelos/AP/{fund_sigla}" if status_fund == "Já definida" else "Modelos/AP/SEM"
             else: pasta_alvo = "Modelos/ACT"
 
@@ -571,7 +573,7 @@ if arquivo_pdf:
                                     doc = DocxTemplate(caminho_arquivo)
                                     doc.render(ctx_global)
                                     doc_buffer = io.BytesIO()
-                                    doc.save(doc_buffer)
+                                    doc.save(doc.buffer)
                                     zip_file.writestr(f"01_Documentos_Gerais/{arquivo}", doc_buffer.getvalue())
                                 except Exception as e:
                                     logs.append(f"Erro ao processar arquivo geral {arquivo}: {str(e)}")
