@@ -591,7 +591,7 @@ if arquivo_pdf:
                                     doc = DocxTemplate(caminho_arquivo)
                                     doc.render(ctx_global)
                                     doc_buffer = io.BytesIO()
-                                    doc.save(doc.buffer)
+                                    doc.save(doc_buffer)
                                     zip_file.writestr(f"01_Documentos_Gerais/{arquivo}", doc_buffer.getvalue())
                                 except Exception as e:
                                     logs.append(f"Erro ao processar arquivo geral {arquivo}: {str(e)}")
