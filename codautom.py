@@ -39,17 +39,15 @@ def limpar_texto_bloco(txt):
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="Raichu Pro", layout="wide")
 st.title("Raichu Pro ⚡")
+
 # --- ESTILIZAÇÃO CUSTOMIZADA (CSS) ---
 st.markdown(
     """
     <style>
-    /* Aumenta a fonte do título "Selecione o Tipo de Processo:" */
     div[data-testid="stRadio"] > label {
         font-size: 20px !important;
         font-weight: bold !important;
     }
-    
-    /* Aumenta a fonte das opções de escolha (AP, CG, ACT) */
     div[role="radiogroup"] p {
         font-size: 18px !important;
     }
@@ -199,7 +197,6 @@ if arquivo_pdf:
             siape = match.group(1).strip()
             nome_bruto = match.group(2).strip()
             
-            # 🪓 BARREIRA DE CONCRETO PARA O NOME
             nome_limpo = re.sub(r'\s+', ' ', nome_bruto).strip()
             corte_idx = len(nome_limpo)
             
@@ -278,7 +275,6 @@ if arquivo_pdf:
                 if palavras_extras_lotacao:
                     lotacao = lotacao + " " + " ".join(palavras_extras_lotacao)
                 
-                # 🪓 BARREIRA DE CONCRETO PARA A LOTAÇÃO
                 lotacao_limpa = re.sub(r'\s+', ' ', lotacao).strip()
                 corte_lot = len(lotacao_limpa)
                 
@@ -309,9 +305,11 @@ if arquivo_pdf:
                         lotacao = re.split(r'(?i)(Coordenador|Participante|Pesquisador|Estagiário|Colaborador|Membro|Fiscal|Responsável|Técnico|Bolsista)', remainder)[0].strip()
                         break
 
+            # 🎯 NOVA COLUNA: Chefia Imediata adicionada à matriz de dados
             dados_extraidos["equipe_raw"].append({
                 "Nome": nome, "SIAPE": siape, "Vínculo": vinculo.title(), "Lotação": lotacao,
-                "Função": funcao, "Bolsa": bolsa, "CH_D": ch_d, "CH_F": ch_f, "Início": data_ini, "Término": data_fim
+                "Função": funcao, "Bolsa": bolsa, "CH_D": ch_d, "CH_F": ch_f, "Início": data_ini, "Término": data_fim,
+                "Chefia Imediata": "", "SIAPE Chefia": ""
             })
 
         unidades_blk = extrair_bloco(r'UNIDADES VINCULADAS\s*\n', [r'CLASSIFICAÇÕES', r'REGIÕES DE ATUAÇÃO', r'PARTICIPANTES'])
@@ -404,7 +402,6 @@ if arquivo_pdf:
             plano_gestao = st.text_area("Plano de Gestão", value=dados_extraidos.get("plano_gestao", ""), height=80)
             inovacao_bool = st.text_input("Possui Inovação? (Sim/Não)", value=dados_extraidos.get("inovacao_bool", ""))
         with c2:
-            n_chefia = st.text_input("Nome da Chefia Imediata")
             diretor_unidade = st.text_input("Diretor da Unidade")
             siape_diretor = st.text_input("SIAPE do Diretor")
             st.text_input("Classificação", value=dados_extraidos.get("classificacao", ""), disabled=True)
@@ -449,29 +446,35 @@ if arquivo_pdf:
 
     st.markdown("---")
     st.write("### 📊 Tabelas Estruturadas Consolidadas")
-    st.info("💡 **DICA PARA AS TABELAS:** Caso queira corrigir ou adicionar algum dado nas tabelas abaixo, **clique duas vezes** no espaço (célula) que deseja alterar para preencher manualmente.")
     
     t1, t2, t3, t4 = st.tabs(["👥 Equipe", "🏛️ Unidades Vinculadas", "📍 Regiões de Atuação", "🗂️ Classificações"])
     
     with t1:
+        # 🎯 AVISO SOBRE CHEFIA ADICIONADO AQUI
+        st.warning("⚠️ **AVISO IMPORTANTE:** Preencha as colunas **'Chefia Imediata'** e **'SIAPE Chefia'** para cada participante clicando duas vezes no espaço vazio. Isso é obrigatório para as declarações de Carga Horária.")
+        
         equipe_final = dados_extraidos["equipe_raw"].copy()
         if f_nome and not any(e["SIAPE"] == f_siape for e in equipe_final):
-            equipe_final.append({"Nome": f_nome, "SIAPE": f_siape, "Vínculo": "Docente", "Lotação": "DEPARTAMENTO DE FITOTECNIA", "Função": "Fiscal", "CH_D": "0", "CH_F": "0", "Bolsa": "Não", "Início": "", "Término": ""})
+            equipe_final.append({"Nome": f_nome, "SIAPE": f_siape, "Vínculo": "Docente", "Lotação": "DEPARTAMENTO DE FITOTECNIA", "Função": "Fiscal", "CH_D": "0", "CH_F": "0", "Bolsa": "Não", "Início": "", "Término": "", "Chefia Imediata": "", "SIAPE Chefia": ""})
+        
         df_equipe = pd.DataFrame(equipe_final).fillna("")
         df_equipe_edit = st.data_editor(df_equipe, num_rows="dynamic", key="ed_equipe", use_container_width=True)
         equipe_final = df_equipe_edit.fillna("").to_dict(orient="records")
 
     with t2:
+        st.info("💡 **DICA:** Caso queira corrigir algum dado, **clique duas vezes** na célula.")
         df_unidades = pd.DataFrame(dados_extraidos["unidades_raw"]).fillna("")
         df_unidades_edit = st.data_editor(df_unidades, num_rows="dynamic", key="ed_unidades", use_container_width=True)
         unidades_final = df_unidades_edit.fillna("").to_dict(orient="records")
 
     with t3:
+        st.info("💡 **DICA:** Caso queira corrigir algum dado, **clique duas vezes** na célula.")
         df_regioes = pd.DataFrame(dados_extraidos["regioes_raw"]).fillna("")
         df_regioes_edit = st.data_editor(df_regioes, num_rows="dynamic", key="ed_regioes", use_container_width=True)
         regioes_final = df_regioes_edit.fillna("").to_dict(orient="records")
         
     with t4:
+        st.info("💡 **DICA:** Caso queira corrigir algum dado, **clique duas vezes** na célula.")
         df_classif = pd.DataFrame(dados_extraidos["classificacoes_raw"]).fillna("")
         df_classif_edit = st.data_editor(df_classif, num_rows="dynamic", key="ed_classif", use_container_width=True)
         classificacoes_final = df_classif_edit.fillna("").to_dict(orient="records")
@@ -487,7 +490,6 @@ if arquivo_pdf:
         with st.spinner("⏳ Processando e gerando os documentos... Por favor, aguarde!"):
             logs = []
             
-            # 🎯 ATUALIZAÇÃO DA LÓGICA DE PASTAS COM O NOVO TERMO
             if tipo_processo == "Contrato Global (CG)": pasta_alvo = f"Modelos/AG/{fund_sigla}" if status_fund == "Já definida" else "Modelos/AG/SEM"
             elif tipo_processo == "Acordo de Parceria (AP)": pasta_alvo = f"Modelos/AP/{fund_sigla}" if status_fund == "Já definida" else "Modelos/AP/SEM"
             else: pasta_alvo = "Modelos/ACT"
@@ -508,7 +510,7 @@ if arquivo_pdf:
                 "membros": equipe_final, "objetivos": objetivos, "metas": metas, 
                 "justificativa": justificativa, "resultados": resultados,
                 "unidades": unidades_final, "regioes": regioes_final, 
-                "classificacoes": classificacoes_final, "nome_chefia": n_chefia, "nomechefia": n_chefia,
+                "classificacoes": classificacoes_final, 
                 "empresa": empresa_input, "importancia_projeto": importancia, "importanciaprojeto": importancia,
                 "justificativa_fund": justificativa_fund, "justificativafund": justificativa_fund,
                 "diretor_unidade": diretor_unidade, "diretorunidade": diretor_unidade,
@@ -556,6 +558,12 @@ if arquivo_pdf:
                                         ctx_membro["chdentro"] = membro.get("CH_D", "0")
                                         ctx_membro["ch_fora"] = membro.get("CH_F", "0")
                                         ctx_membro["chfora"] = membro.get("CH_F", "0")
+                                        
+                                        # 🎯 CHEFIA IMEDIATA POR MEMBRO APLICADA AQUI PARA OS DOCS WORD INDIVIDUAIS
+                                        ctx_membro["chefia_imediata"] = str(membro.get("Chefia Imediata", ""))
+                                        ctx_membro["nomechefia"] = str(membro.get("Chefia Imediata", ""))
+                                        ctx_membro["siape_chefia"] = str(membro.get("SIAPE Chefia", ""))
+                                        ctx_membro["siapechefia"] = str(membro.get("SIAPE Chefia", ""))
                                         
                                         doc_ind.render(ctx_membro)
                                         doc_buffer = io.BytesIO()
@@ -644,7 +652,9 @@ if arquivo_pdf:
                                 escrever_excel("A36", justificativa)
                                 
                             else:
+                                # 🎯 AJUSTE MILIMÉTRICO DO EXCEL FATEC/FUNDEP (CORREÇÃO DE LINHAS)
                                 escrever_excel("C17", tit_proj)
+                                escrever_excel("C18", dados_extraidos.get("data_inicio_proj", ""))
                                 escrever_excel("C19", data_termino_edit)
                                 escrever_excel("C20", c_g_n)
                                 escrever_excel("C21", c_g_s)
@@ -656,10 +666,12 @@ if arquivo_pdf:
                                 escrever_excel("C27", dados_extraidos.get("classificacao", ""))
                                 escrever_excel("C28", tipo_processo)
                                 
-                                escrever_excel("A32", resumo)
-                                escrever_excel("A36", objetivos)
-                                escrever_excel("A40", justificativa)
-                                escrever_excel("A44", resultados)
+                                # Textos longos exatamente nos blocos vazios abaixo das perguntas
+                                escrever_excel("A31", resumo)
+                                escrever_excel("A35", objetivos)
+                                escrever_excel("A39", justificativa)
+                                escrever_excel("A43", resultados)
+                                
                                 escrever_excel("C65", plano_gestao)
                                 escrever_excel("C66", objetivo_estrategico)
                                 escrever_excel("G70", inovacao_bool)
@@ -723,7 +735,7 @@ if arquivo_pdf:
                     for l in logs: st.error(l)
                 else:
                     st.success("🔥 Documentos gerados e empacotados com Sucesso Absoluto!")
-                    st.warning("📝 **LEMBRETE:** Após baixar e descompactar o ZIP, todos os documentos estarão em **Word (.docx)** e **Excel (.xlsx)**. Você pode abri-los e editar qualquer texto normalmente no seu computador.")
+                    st.warning("📝 **LEMBRETE:** Após baixar e descompactar o ZIP, todos os documentos estarão em **Word (.docx)** e **Excel (.xlsx)**. Pode abri-los e editar qualquer texto normalmente no seu computador.")
                 
                 st.session_state['zip_data'] = zip_buffer.getvalue()
                 st.session_state['zip_name'] = f"{nome_pasta_principal}.zip"
