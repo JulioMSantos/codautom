@@ -658,7 +658,6 @@ if arquivo_pdf:
                                 escrever_excel("A32", resumo)
                                 escrever_excel("A36", objetivos)
                                 escrever_excel("A40", justificativa)
-                                escrever_excel("A44", resultados)
                                 
                                 # O ACT ACABA AQUI!
 
