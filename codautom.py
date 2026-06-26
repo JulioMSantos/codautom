@@ -652,10 +652,10 @@ if arquivo_pdf:
                             escrever_excel("C28", tipo_processo)
                             
                             # 🎯 CORREÇÃO CRÍTICA EXCEL ACT: Textos deslocados para a linha em branco correta!
-                            escrever_excel("A31", resumo)
-                            escrever_excel("A35", objetivos)
-                            escrever_excel("A39", justificativa)
-                            escrever_excel("A43", resultados)
+                            escrever_excel("A32", resumo)
+                            escrever_excel("A36", objetivos)
+                            escrever_excel("A40", justificativa)
+                            escrever_excel("A44", resultados)
                             
                             escrever_excel("C65", plano_gestao)
                             escrever_excel("C66", objetivo_estrategico)
