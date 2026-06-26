@@ -681,10 +681,9 @@ if arquivo_pdf:
                                 escrever_excel("B28", tipo_processo)
                                 
                                 # Coluna A, linhas de bloco branco para textos longos
-                                escrever_excel("A31", resumo)
-                                escrever_excel("A35", objetivos)
-                                escrever_excel("A39", justificativa)
-                                escrever_excel("A43", resultados)
+                                escrever_excel("A32", resumo)
+                                escrever_excel("A36", objetivos)
+                                escrever_excel("A40", justificativa)
                                 
                                 # PREENCHE O RESTO DA FASE DA FUNDAÇÃO
                                 escrever_excel("C65", plano_gestao)
