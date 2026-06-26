@@ -63,7 +63,7 @@ st.markdown("### 1️⃣ Passo 1: Seleção do Processo e Relatório")
 tipo_processo = st.radio(
     "Selecione o Tipo de Processo:",
     ["Acordo de Parceria (AP)", "Contrato Global (CG)", "Acordo de Cooperação Técnica (ACT)"],
-    index=2, # Padrão no ACT para os seus testes
+    index=2,
     horizontal=True
 )
 
@@ -640,33 +640,32 @@ if arquivo_pdf:
                             # 🎯 SEPARAÇÃO CIRÚRGICA: LÓGICA EXCLUSIVA DO ACT 
                             # ==========================================================
                             if tipo_processo == "Acordo de Cooperação Técnica (ACT)":
-                                # Coluna C para os dados curtos
-                                escrever_excel("C17", tit_proj)
-                                if dados_extraidos.get("data_inicio_proj", ""): escrever_excel("C18", dados_extraidos.get("data_inicio_proj", ""))
-                                escrever_excel("C19", data_termino_edit)
-                                escrever_excel("C20", c_g_n)
-                                escrever_excel("C21", c_g_s)
-                                escrever_excel("C22", f_nome)
-                                escrever_excel("C23", f_siape)
-                                escrever_excel("C24", nome_coord_adm)
-                                escrever_excel("C25", siape_coord_adm)
-                                escrever_excel("C26", n_proj)
-                                escrever_excel("C27", dados_extraidos.get("classificacao", ""))
-                                escrever_excel("C28", tipo_processo)
+                                # Dados curtos deslocados para a Coluna F (uma coluna a mais)
+                                escrever_excel("F17", tit_proj)
+                                if dados_extraidos.get("data_inicio_proj", ""): escrever_excel("C18", dados_extraidos.get("data_inicio_proj", "")) # Inicio fica em C
+                                escrever_excel("F19", data_termino_edit)
+                                escrever_excel("F20", c_g_n)
+                                escrever_excel("F21", c_g_s)
+                                escrever_excel("F22", f_nome)
+                                escrever_excel("F23", f_siape)
+                                escrever_excel("F24", nome_coord_adm)
+                                escrever_excel("F25", siape_coord_adm)
+                                escrever_excel("F26", n_proj)
+                                escrever_excel("F27", dados_extraidos.get("classificacao", ""))
+                                escrever_excel("F28", tipo_processo)
                                 
-                                # Coluna A, linhas de bloco branco para textos longos
-                                escrever_excel("A31", resumo)
-                                escrever_excel("A35", objetivos)
-                                escrever_excel("A39", justificativa)
-                                escrever_excel("A43", resultados)
+                                # Textos longos deslocados UMA LINHA A MAIS para baixo (A32, A36...)
+                                escrever_excel("A32", resumo)
+                                escrever_excel("A36", objetivos)
+                                escrever_excel("A40", justificativa)
+                                escrever_excel("A44", resultados)
                                 
-                                # O ACT ACABA AQUI! Nenhuma tabela flutuante será gerada abaixo do cronograma.
+                                # O ACT ACABA AQUI!
 
                             # ==========================================================
-                            # 🎯 SEPARAÇÃO CIRÚRGICA: LÓGICA EXCLUSIVA DO CG E AP
+                            # 🎯 LÓGICA EXCLUSIVA DO CG E AP (MANTIDA INTACTA)
                             # ==========================================================
                             else:
-                                # Coluna B para os dados curtos
                                 escrever_excel("B17", tit_proj)
                                 if dados_extraidos.get("data_inicio_proj", ""): escrever_excel("B18", dados_extraidos.get("data_inicio_proj", ""))
                                 escrever_excel("B19", data_termino_edit)
@@ -680,12 +679,10 @@ if arquivo_pdf:
                                 escrever_excel("B27", dados_extraidos.get("classificacao", ""))
                                 escrever_excel("B28", tipo_processo)
                                 
-                                # Coluna A, linhas de bloco branco para textos longos
                                 escrever_excel("A32", resumo)
                                 escrever_excel("A36", objetivos)
                                 escrever_excel("A40", justificativa)
                                 
-                                # PREENCHE O RESTO DA FASE DA FUNDAÇÃO
                                 escrever_excel("C65", plano_gestao)
                                 escrever_excel("C66", objetivo_estrategico)
                                 escrever_excel("G70", inovacao_bool)
