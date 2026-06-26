@@ -63,7 +63,7 @@ st.markdown("### 1️⃣ Passo 1: Seleção do Processo e Relatório")
 tipo_processo = st.radio(
     "Selecione o Tipo de Processo:",
     ["Acordo de Parceria (AP)", "Contrato Global (CG)", "Acordo de Cooperação Técnica (ACT)"],
-    index=1,
+    index=2, # Padrão agora no ACT para facilitar seu teste!
     horizontal=True
 )
 
@@ -107,7 +107,7 @@ if arquivo_pdf:
 
         # 🧹 O APAGADOR MÁGICO
         lixos_para_apagar = [
-            r'(?i)PARTICIPANTE\s+V[ÍI]NCULO\s+CURSO/LOTA[ÇC][ÃA]O\s+FUN[ÇC][ÃA]O\s*\$\$\$',
+            r'(?i)PARTICIPANTE\s+V[ÍI]NCULO\s+CURSO/LOTA[ÇC][ÃA]O\s+FUN[ÇC][ÃA]O\s*\$\裝$',
             r'(?i)PARTICIPANTE\s+V[ÍI]NCULO\s+CURSO/LOTA[ÇC][ÃA]O\s+FUN[ÇC][ÃA]O',
             r'(?i)CH\s+DENTRO\s+CH\s+FORA\s+IN[ÍI]CIO\s+T[ÉE]RMINO\s+OBSERVA[ÇC][ÃA]O',
             r'(?i)UNIDADE\s+FUN[ÇC][ÃA]O\s+VALOR\s+IN[ÍI]CIO\s+T[ÉE]RMINO',
@@ -197,6 +197,7 @@ if arquivo_pdf:
             siape = match.group(1).strip()
             nome_bruto = match.group(2).strip()
             
+            # 🪓 BARREIRA DE CONCRETO PARA O NOME
             nome_limpo = re.sub(r'\s+', ' ', nome_bruto).strip()
             corte_idx = len(nome_limpo)
             
@@ -275,6 +276,7 @@ if arquivo_pdf:
                 if palavras_extras_lotacao:
                     lotacao = lotacao + " " + " ".join(palavras_extras_lotacao)
                 
+                # 🪓 BARREIRA DE CONCRETO PARA A LOTAÇÃO
                 lotacao_limpa = re.sub(r'\s+', ' ', lotacao).strip()
                 corte_lot = len(lotacao_limpa)
                 
@@ -305,7 +307,6 @@ if arquivo_pdf:
                         lotacao = re.split(r'(?i)(Coordenador|Participante|Pesquisador|Estagiário|Colaborador|Membro|Fiscal|Responsável|Técnico|Bolsista)', remainder)[0].strip()
                         break
 
-            # 🎯 NOVA COLUNA: Chefia Imediata adicionada à matriz de dados
             dados_extraidos["equipe_raw"].append({
                 "Nome": nome, "SIAPE": siape, "Vínculo": vinculo.title(), "Lotação": lotacao,
                 "Função": funcao, "Bolsa": bolsa, "CH_D": ch_d, "CH_F": ch_f, "Início": data_ini, "Término": data_fim,
@@ -450,7 +451,6 @@ if arquivo_pdf:
     t1, t2, t3, t4 = st.tabs(["👥 Equipe", "🏛️ Unidades Vinculadas", "📍 Regiões de Atuação", "🗂️ Classificações"])
     
     with t1:
-        # 🎯 AVISO SOBRE CHEFIA ADICIONADO AQUI
         st.warning("⚠️ **AVISO IMPORTANTE:** Preencha as colunas **'Chefia Imediata'** e **'SIAPE Chefia'** para cada participante clicando duas vezes no espaço vazio. Isso é obrigatório para as declarações de Carga Horária.")
         
         equipe_final = dados_extraidos["equipe_raw"].copy()
@@ -559,11 +559,19 @@ if arquivo_pdf:
                                         ctx_membro["ch_fora"] = membro.get("CH_F", "0")
                                         ctx_membro["chfora"] = membro.get("CH_F", "0")
                                         
-                                        # 🎯 CHEFIA IMEDIATA POR MEMBRO APLICADA AQUI PARA OS DOCS WORD INDIVIDUAIS
-                                        ctx_membro["chefia_imediata"] = str(membro.get("Chefia Imediata", ""))
-                                        ctx_membro["nomechefia"] = str(membro.get("Chefia Imediata", ""))
+                                        # 🎯 CHAVE INDIVIDUAL DE CHEFIA EXTRAÍDA E DISTRIBUÍDA PARA TODAS AS VARIÁVEIS TAGS POSSÍVEIS DO WORD
+                                        chefia_nome_val = str(membro.get("Chefia Imediata", ""))
+                                        ctx_membro["chefia_imediata"] = chefia_nome_val
+                                        ctx_membro["nome_chefia"] = chefia_nome_val
+                                        ctx_membro["nomechefia"] = chefia_nome_val
+                                        ctx_membro["chefia"] = chefia_nome_val
+                                        ctx_membro["chefiaimediata"] = chefia_nome_val
+                                        ctx_membro["nome_chefia_imediata"] = chefia_nome_val
+                                        ctx_membro["nomechefiaimediata"] = chefia_nome_val
+                                        
                                         ctx_membro["siape_chefia"] = str(membro.get("SIAPE Chefia", ""))
                                         ctx_membro["siapechefia"] = str(membro.get("SIAPE Chefia", ""))
+                                        ctx_membro["siape_chefia_imediata"] = str(membro.get("SIAPE Chefia", ""))
                                         
                                         doc_ind.render(ctx_membro)
                                         doc_buffer = io.BytesIO()
@@ -631,99 +639,79 @@ if arquivo_pdf:
                                 except Exception as err:
                                     logs.append(f"Aviso na célula {celula}: {str(err)}")
 
-                            if tipo_processo == "Acordo de Cooperação Técnica (ACT)":
-                                escrever_excel("D3", tit_proj)
-                                escrever_excel("D4", n_proj)
-                                escrever_excel("H4", tipo_processo)
-                                escrever_excel("D5", data_termino_edit)
-                                escrever_excel("H5", dados_extraidos.get("classificacao", ""))
-                                
-                                escrever_excel("C7", c_g_n)
-                                escrever_excel("G7", c_g_s)
-                                escrever_excel("C8", f_nome)
-                                escrever_excel("G8", f_siape)
-                                escrever_excel("C9", nome_coord_adm)
-                                escrever_excel("G9", siape_coord_adm)
-                                
-                                escrever_excel("C13", empresa_input)
-                                
-                                escrever_excel("A24", resumo)
-                                escrever_excel("A30", objetivos)
-                                escrever_excel("A36", justificativa)
-                                
-                            else:
-                                # 🎯 AJUSTE MILIMÉTRICO DO EXCEL FATEC/FUNDEP (CORREÇÃO DE LINHAS)
-                                escrever_excel("C17", tit_proj)
-                                escrever_excel("C18", dados_extraidos.get("data_inicio_proj", ""))
-                                escrever_excel("C19", data_termino_edit)
-                                escrever_excel("C20", c_g_n)
-                                escrever_excel("C21", c_g_s)
-                                escrever_excel("C22", f_nome)
-                                escrever_excel("C23", f_siape)
-                                escrever_excel("C24", nome_coord_adm)
-                                escrever_excel("C25", siape_coord_adm)
-                                escrever_excel("C26", n_proj)
-                                escrever_excel("C27", dados_extraidos.get("classificacao", ""))
-                                escrever_excel("C28", tipo_processo)
-                                
-                                # Textos longos exatamente nos blocos vazios abaixo das perguntas
-                                escrever_excel("A31", resumo)
-                                escrever_excel("A35", objetivos)
-                                escrever_excel("A39", justificativa)
-                                escrever_excel("A43", resultados)
-                                
-                                escrever_excel("C65", plano_gestao)
-                                escrever_excel("C66", objetivo_estrategico)
-                                escrever_excel("G70", inovacao_bool)
-                                escrever_excel("D71", inovacao_potencial)
+                            # 🎯 MATRIZ DE LINHAS 100% UNIFICADA PARA TODOS OS PROCESSOS (INCLUINDO O SEU ACT)
+                            escrever_excel("B17", tit_proj)
+                            if dados_extraidos.get("data_inicio_proj", ""): escrever_excel("B18", dados_extraidos.get("data_inicio_proj", ""))
+                            escrever_excel("B19", data_termino_edit)
+                            escrever_excel("B20", c_g_n)
+                            escrever_excel("B21", c_g_s)
+                            escrever_excel("B22", f_nome)
+                            escrever_excel("B23", f_siape)
+                            escrever_excel("B24", nome_coord_adm)
+                            escrever_excel("B25", siape_coord_adm)
+                            escrever_excel("B26", n_proj)
+                            escrever_excel("B27", dados_extraidos.get("classificacao", ""))
+                            escrever_excel("B28", tipo_processo)
+                            
+                            # 🎯 CORREÇÃO CRÍTICA: Textos salvos nas linhas em branco certas (31, 35, 39, 43) protegendo os títulos cinzas!
+                            escrever_excel("A31", resumo)
+                            escrever_excel("A35", objetivos)
+                            escrever_excel("A39", justificativa)
+                            escrever_excel("A43", resultados)
+                            
+                            # Campos extras de PDI e Inovação (Preenchidos dinamicamente)
+                            escrever_excel("C65", plano_gestao)
+                            escrever_excel("C66", objetivo_estrategico)
+                            escrever_excel("G70", inovacao_bool)
+                            escrever_excel("D71", inovacao_potencial)
 
-                                for idx, c in enumerate(classificacoes_final):
-                                    l_c = 49 + idx
-                                    if l_c > 63: break
-                                    escrever_excel(f"A{l_c}", c.get("Tipo de Classificação", ""))
-                                    escrever_excel(f"G{l_c}", c.get("Classificação", ""))
+                            for idx, c in enumerate(classificacoes_final):
+                                l_c = 49 + idx
+                                if l_c > 63: break
+                                escrever_excel(f"A{l_c}", c.get("Tipo de Classificação", ""))
+                                escrever_excel(f"G{l_c}", c.get("Classificação", ""))
 
-                                for idx, u in enumerate(unidades_final):
-                                    l_u = 76 + idx
-                                    if l_u > 90: break
-                                    escrever_excel(f"A{l_u}", u.get("Unidade", ""))
-                                    escrever_excel(f"F{l_u}", u.get("Função", ""))
-                                    escrever_excel(f"I{l_u}", u.get("Valor", ""))
-                                    escrever_excel(f"K{l_u}", u.get("Início", ""))
-                                    escrever_excel(f"L{l_u}", u.get("Término", ""))
+                            for idx, u in enumerate(unidades_final):
+                                l_u = 76 + idx
+                                if l_u > 90: break
+                                escrever_excel(f"A{l_u}", u.get("Unidade", ""))
+                                escrever_excel(f"F{l_u}", u.get("Função", ""))
+                                escrever_excel(f"I{l_u}", u.get("Valor", ""))
+                                escrever_excel(f"K{l_u}", u.get("Início", ""))
+                                escrever_excel(f"L{l_u}", u.get("Término", ""))
 
-                                equipe_excel = [p for p in equipe_final if p.get("Função", "") != "Fiscal" and str(p.get("Nome", "")).strip() != ""]
-                                for idx, p in enumerate(equipe_excel):
-                                    linha = 95 + idx
-                                    escrever_excel(f"A{linha}", p.get("Nome", ""))
-                                    escrever_excel(f"C{linha}", p.get("SIAPE", ""))
-                                    escrever_excel(f"D{linha}", p.get("Vínculo", ""))
-                                    escrever_excel(f"E{linha}", p.get("Lotação", ""))
-                                    escrever_excel(f"F{linha}", p.get("Função", ""))
-                                    escrever_excel(f"G{linha}", p.get("Bolsa", ""))
-                                    escrever_excel(f"I{linha}", p.get("CH_D", ""))
-                                    escrever_excel(f"J{linha}", p.get("CH_F", ""))
-                                    escrever_excel(f"K{linha}", p.get("Início", ""))
-                                    escrever_excel(f"L{linha}", p.get("Término", ""))
+                            equipe_excel = [p for p in equipe_final if p.get("Função", "") != "Fiscal" and str(p.get("Nome", "")).strip() != ""]
+                            for idx, p in enumerate(equipe_excel):
+                                linha = 95 + idx
+                                escrever_excel(f"A{linha}", p.get("Nome", ""))
+                                escrever_excel(f"C{linha}", p.get("SIAPE", ""))
+                                escrever_excel(f"D{linha}", p.get("Vínculo", ""))
+                                escrever_excel(f"E{linha}", p.get("Lotação", ""))
+                                escrever_excel(f"F{linha}", p.get("Função", ""))
+                                escrever_excel(f"G{linha}", p.get("Bolsa", ""))
+                                escrever_excel(f"I{linha}", p.get("CH_D", ""))
+                                escrever_excel(f"J{linha}", p.get("CH_F", ""))
+                                escrever_excel(f"K{linha}", p.get("Início", ""))
+                                escrever_excel(f"L{linha}", p.get("Término", ""))
 
-                                for idx, r_reg in enumerate(regioes_final):
-                                    l_r = 142 + idx
-                                    if l_r > 184: break
-                                    escrever_excel(f"A{l_r}", r_reg.get("Cidade", ""))
-                                    escrever_excel(f"E{l_r}", r_reg.get("UF", ""))
-                                    escrever_excel(f"G{l_r}", r_reg.get("País", ""))
-                                    escrever_excel(f"I{l_r}", r_reg.get("Início", ""))
-                                    escrever_excel(f"K{l_r}", r_reg.get("Término", ""))
-                                
-                                for idx, lab in enumerate(laboratorios):
-                                    l_lab = 189 + idx
-                                    if l_lab > 203: break
-                                    if not lab.get("nome_lab") or str(lab.get("nome_lab")).strip() == "": continue
-                                    escrever_excel(f"A{l_lab}", lab.get("nome_lab", ""))
-                                    escrever_excel(f"F{l_lab}", lab.get("unidade_lab", ""))
-                                    escrever_excel(f"I{l_lab}", lab.get("nome_resp_lab", ""))
-                                    escrever_excel(f"L{l_lab}", lab.get("siape_resp_lab", ""))
-                                
+                            for idx, r_reg in enumerate(regioes_final):
+                                l_r = 142 + idx
+                                if l_r > 184: break
+                                escrever_excel(f"A{l_r}", r_reg.get("Cidade", ""))
+                                escrever_excel(f"E{l_r}", r_reg.get("UF", ""))
+                                escrever_excel(f"G{l_r}", r_reg.get("País", ""))
+                                escrever_excel(f"I{l_r}", r_reg.get("Início", ""))
+                                escrever_excel(f"K{l_r}", r_reg.get("Término", ""))
+                            
+                            for idx, lab in enumerate(laboratorios):
+                                l_lab = 189 + idx
+                                if l_lab > 203: break
+                                if not lab.get("nome_lab") or str(lab.get("nome_lab")).strip() == "": continue
+                                escrever_excel(f"A{l_lab}", lab.get("nome_lab", ""))
+                                escrever_excel(f"F{l_lab}", lab.get("unidade_lab", ""))
+                                escrever_excel(f"I{l_lab}", lab.get("nome_resp_lab", ""))
+                                escrever_excel(f"L{l_lab}", lab.get("siape_resp_lab", ""))
+                            
                             excel_buffer = io.BytesIO()
                             wb.save(excel_buffer)
                             zip_file.writestr(f"01_Documentos_Gerais/{arq_excel}", excel_buffer.getvalue())
