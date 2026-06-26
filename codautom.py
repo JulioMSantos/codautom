@@ -63,7 +63,7 @@ st.markdown("### 1️⃣ Passo 1: Seleção do Processo e Relatório")
 tipo_processo = st.radio(
     "Selecione o Tipo de Processo:",
     ["Acordo de Parceria (AP)", "Contrato Global (CG)", "Acordo de Cooperação Técnica (ACT)"],
-    index=2, # Padrão agora no ACT para facilitar seu teste!
+    index=2, # Padrão definido no ACT
     horizontal=True
 )
 
@@ -107,7 +107,7 @@ if arquivo_pdf:
 
         # 🧹 O APAGADOR MÁGICO
         lixos_para_apagar = [
-            r'(?i)PARTICIPANTE\s+V[ÍI]NCULO\s+CURSO/LOTA[ÇC][ÃA]O\s+FUN[ÇC][ÃA]O\s*\$\裝$',
+            r'(?i)PARTICIPANTE\s+V[ÍI]NCULO\s+CURSO/LOTA[ÇC][ÃA]O\s+FUN[ÇC][ÃA]O\s*\$\$\$',
             r'(?i)PARTICIPANTE\s+V[ÍI]NCULO\s+CURSO/LOTA[ÇC][ÃA]O\s+FUN[ÇC][ÃA]O',
             r'(?i)CH\s+DENTRO\s+CH\s+FORA\s+IN[ÍI]CIO\s+T[ÉE]RMINO\s+OBSERVA[ÇC][ÃA]O',
             r'(?i)UNIDADE\s+FUN[ÇC][ÃA]O\s+VALOR\s+IN[ÍI]CIO\s+T[ÉE]RMINO',
@@ -197,7 +197,6 @@ if arquivo_pdf:
             siape = match.group(1).strip()
             nome_bruto = match.group(2).strip()
             
-            # 🪓 BARREIRA DE CONCRETO PARA O NOME
             nome_limpo = re.sub(r'\s+', ' ', nome_bruto).strip()
             corte_idx = len(nome_limpo)
             
@@ -276,7 +275,6 @@ if arquivo_pdf:
                 if palavras_extras_lotacao:
                     lotacao = lotacao + " " + " ".join(palavras_extras_lotacao)
                 
-                # 🪓 BARREIRA DE CONCRETO PARA A LOTAÇÃO
                 lotacao_limpa = re.sub(r'\s+', ' ', lotacao).strip()
                 corte_lot = len(lotacao_limpa)
                 
@@ -559,7 +557,7 @@ if arquivo_pdf:
                                         ctx_membro["ch_fora"] = membro.get("CH_F", "0")
                                         ctx_membro["chfora"] = membro.get("CH_F", "0")
                                         
-                                        # 🎯 CHAVE INDIVIDUAL DE CHEFIA EXTRAÍDA E DISTRIBUÍDA PARA TODAS AS VARIÁVEIS TAGS POSSÍVEIS DO WORD
+                                        # 🎯 CHEFIA IMEDIATA INSERIDA NO CONTEXTO DO WORD INDIVIDUAL
                                         chefia_nome_val = str(membro.get("Chefia Imediata", ""))
                                         ctx_membro["chefia_imediata"] = chefia_nome_val
                                         ctx_membro["nome_chefia"] = chefia_nome_val
@@ -639,27 +637,26 @@ if arquivo_pdf:
                                 except Exception as err:
                                     logs.append(f"Aviso na célula {celula}: {str(err)}")
 
-                            # 🎯 MATRIZ DE LINHAS 100% UNIFICADA PARA TODOS OS PROCESSOS (INCLUINDO O SEU ACT)
-                            escrever_excel("B17", tit_proj)
-                            if dados_extraidos.get("data_inicio_proj", ""): escrever_excel("B18", dados_extraidos.get("data_inicio_proj", ""))
-                            escrever_excel("B19", data_termino_edit)
-                            escrever_excel("B20", c_g_n)
-                            escrever_excel("B21", c_g_s)
-                            escrever_excel("B22", f_nome)
-                            escrever_excel("B23", f_siape)
-                            escrever_excel("B24", nome_coord_adm)
-                            escrever_excel("B25", siape_coord_adm)
-                            escrever_excel("B26", n_proj)
-                            escrever_excel("B27", dados_extraidos.get("classificacao", ""))
-                            escrever_excel("B28", tipo_processo)
+                            # 🎯 CORREÇÃO EXCEL ACT (COLUNA C E LINHAS IMPARES)
+                            escrever_excel("C17", tit_proj)
+                            if dados_extraidos.get("data_inicio_proj", ""): escrever_excel("C18", dados_extraidos.get("data_inicio_proj", ""))
+                            escrever_excel("C19", data_termino_edit)
+                            escrever_excel("C20", c_g_n)
+                            escrever_excel("C21", c_g_s)
+                            escrever_excel("C22", f_nome)
+                            escrever_excel("C23", f_siape)
+                            escrever_excel("C24", nome_coord_adm)
+                            escrever_excel("C25", siape_coord_adm)
+                            escrever_excel("C26", n_proj)
+                            escrever_excel("C27", dados_extraidos.get("classificacao", ""))
+                            escrever_excel("C28", tipo_processo)
                             
-                            # 🎯 CORREÇÃO CRÍTICA: Textos salvos nas linhas em branco certas (31, 35, 39, 43) protegendo os títulos cinzas!
+                            # 🎯 CORREÇÃO CRÍTICA EXCEL ACT: Textos deslocados para a linha em branco correta!
                             escrever_excel("A31", resumo)
                             escrever_excel("A35", objetivos)
                             escrever_excel("A39", justificativa)
                             escrever_excel("A43", resultados)
                             
-                            # Campos extras de PDI e Inovação (Preenchidos dinamicamente)
                             escrever_excel("C65", plano_gestao)
                             escrever_excel("C66", objetivo_estrategico)
                             escrever_excel("G70", inovacao_bool)
