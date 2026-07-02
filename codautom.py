@@ -221,7 +221,7 @@ if arquivo_pdf:
             janela_limpa = " ".join(janela_texto.split())
             vinculo, lotacao, funcao, bolsa, ch_d, ch_f, data_ini, data_fim = "Outro", "", "Participante", "Não", "0", "0", "", ""
             
-            m_info = re.search(r'(Coordenador Administrativo|Coordenador|Estagiário|Colaborador|Fiscal|Participante|Membro|Pesquisador|Responsável Técnico|Responsável|Técnico|Bolsista)\s+(Sim|Não|Nao)[\s\S]*?(\d+)\s+(\d+)\s+(\d{2}/\d{2}/\d{4})\s+(\d{2}/\d{2}/\d{4})', janela_limpa, re.IGNORECASE)
+            m_info = re.search(r'(Coordenador Administrativo|Coordenador|Estagiário|Colaborador|Monitor|Fiscal|Participante|Membro|Pesquisador|Responsável Técnico|Responsável|Técnico|Bolsista)\s+(Sim|Não|Nao)[\s\S]*?(\d+)\s+(\d+)\s+(\d{2}/\d{2}/\d{4})\s+(\d{2}/\d{2}/\d{4})', janela_limpa, re.IGNORECASE)
             
             prefixos_ufsm = [
                 "Estudante de Pós-graduação", "Estudante de Pós-Graduação", "Estudante de Graduação", "Estudante de graduação",
