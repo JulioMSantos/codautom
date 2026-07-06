@@ -12,32 +12,23 @@ import zipfile
 
 # --- FUNÇÃO DE DATA ---
 def data_extenso(dt):
-    meses = {
-        1: "janeiro", 2: "fevereiro", 3: "março", 4: "abril", 5: "maio", 6: "junho",
-        7: "julho", 8: "agosto", 9: "setembro", 10: "outubro", 11: "novembro", 12: "dezembro"
-    }
+    meses = {1: "janeiro", 2: "fevereiro", 3: "março", 4: "abril", 5: "maio", 6: "junho",
+             7: "julho", 8: "agosto", 9: "setembro", 10: "outubro", 11: "novembro", 12: "dezembro"}
     return f"{dt.day} de {meses[dt.month]} de {dt.year}"
 
 # --- FILTRO ATÔMICO CONTRA RUÍDOS DE PÁGINA E TEXTOS VAZIOS ---
 def limpar_texto_bloco(txt):
-    if not txt:
-        return ""
+    if not txt: return ""
     linhas = txt.split('\n')
     linhas_limpas = []
     for l in linhas:
         l_strip = l.strip()
-        if re.search(r'(?i)Página \d+ de \d+', l_strip):
-            continue
-        if re.search(r'(?i)UNIVERSIDADE FEDERAL DE SANTA MARIA', l_strip):
-            continue
-        if re.search(r'(?i)PROJETO NA ÍNTEGRA', l_strip):
-            continue
-        if re.search(r'(?i)Consulte em http', l_strip):
-            continue
-        if re.search(r'\d{2}/\d{2}/\d{4}\s+\d{2}:\d{2}', l_strip):
-            continue
-        if re.search(r'[A-F0-9]{4}(?:\.[A-F0-9]{4}){7}', l_strip):
-            continue
+        if re.search(r'(?i)Página \d+ de \d+', l_strip): continue
+        if re.search(r'(?i)UNIVERSIDADE FEDERAL DE SANTA MARIA', l_strip): continue
+        if re.search(r'(?i)PROJETO NA ÍNTEGRA', l_strip): continue
+        if re.search(r'(?i)Consulte em http', l_strip): continue
+        if re.search(r'\d{2}/\d{2}/\d{4}\s+\d{2}:\d{2}', l_strip): continue
+        if re.search(r'[A-F0-9]{4}(?:\.[A-F0-9]{4}){7}', l_strip): continue
         linhas_limpas.append(l)
 
     txt_final = " ".join([l.strip() for l in linhas_limpas if l.strip()])
@@ -45,24 +36,30 @@ def limpar_texto_bloco(txt):
         return ""
     return txt_final.strip()
 
-# --- FILTRO PARA EXCLUIR ESTUDANTES DA GERAÇÃO DE CARGA HORÁRIA ---
-def eh_estudante(registro):
-    texto = " ".join([
-        str(registro.get("Nome", "")),
-        str(registro.get("Vínculo", "")),
-        str(registro.get("Lotação", "")),
-        str(registro.get("Função", "")),
-        str(registro.get("Bolsa", "")),
-    ]).lower()
+# --- DETECÇÃO AUTOMÁTICA DO INSTRUMENTO JURÍDICO ---
+def identificar_instrumento_juridico(texto):
+    texto = texto or ""
 
-    termos_bloqueio = [
-        "estudante", "discente", "graduando", "graduanda",
-        "graduação", "graduacao", "pós-graduação", "pos-graduacao",
-        "pós graduando", "pos graduando", "bolsista",
-        "aluno", "aluna", "mestrando", "doutorando"
-    ]
+    # Tenta ler o campo explícito do relatório
+    m_instr = re.search(r'Instrumento jurídico celebrado\s*:\s*(.*?)(?:\n|$)', texto, re.IGNORECASE)
+    if m_instr:
+        valor = m_instr.group(1).strip().lower()
+        if "acordo de cooperação técnica" in valor or "cooperação técnica" in valor or "cooperacao tecnica" in valor:
+            return "Acordo de Cooperação Técnica (ACT)"
+        if "contrato global" in valor:
+            return "Contrato Global (CG)"
+        if "acordo de parceria" in valor or "parceria" in valor:
+            return "Acordo de Parceria (AP)"
 
-    return any(termo in texto for termo in termos_bloqueio)
+    texto_low = texto.lower()
+    if "acordo de cooperação técnica" in texto_low or "cooperação técnica" in texto_low or "cooperacao tecnica" in texto_low:
+        return "Acordo de Cooperação Técnica (ACT)"
+    if "contrato global" in texto_low:
+        return "Contrato Global (CG)"
+    if "acordo de parceria" in texto_low or "parceria" in texto_low:
+        return "Acordo de Parceria (AP)"
+
+    return "Acordo de Cooperação Técnica (ACT)"
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="Raichu Pro", layout="wide")
@@ -84,17 +81,10 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# ============================================================================== 
+# ==============================================================================
 # PASSO 1: SELEÇÃO DO PROCESSO
-# ============================================================================== 
+# ==============================================================================
 st.markdown("### 1️⃣ Passo 1: Seleção do Processo e Relatório")
-tipo_processo = st.radio(
-    "Selecione o Tipo de Processo:",
-    ["Acordo de Parceria (AP)", "Contrato Global (CG)", "Acordo de Cooperação Técnica (ACT)"],
-    index=2,
-    horizontal=True
-)
-
 arquivo_pdf = st.file_uploader("Insira o seu relatório do projeto", type=["pdf"])
 
 fundacoes_dados = {
@@ -109,22 +99,21 @@ dados_extraidos = {
     "resumo": "", "objetivos": "", "justificativa_proj": "", "resultados": "", "importancia_projeto": "",
     "plano_gestao": "", "objetivo_estrategico": "", "inovacao_bool": "", "inovacao_potencial": "",
     "classificacoes_raw": [], "equipe_raw": [], "unidades_raw": [], "regioes_raw": [],
-    "fundacao_sugerida": "FATEC"
+    "fundacao_sugerida": "FATEC", "tipo_processo_sugerido": "Acordo de Cooperação Técnica (ACT)"
 }
 
 texto_limpo = ""
 
-# ============================================================================== 
+# ==============================================================================
 # MOTOR DE LEITURA DO PDF
-# ============================================================================== 
+# ==============================================================================
 if arquivo_pdf:
     try:
         texto_completo = ""
         with pdfplumber.open(arquivo_pdf) as pdf:
             for page in pdf.pages:
                 extraido = page.extract_text()
-                if extraido:
-                    texto_completo += extraido + "\n"
+                if extraido: texto_completo += extraido + "\n"
 
         texto_limpo = re.sub(r'---\s*PAGE\s*\d+\s*---', '\n', texto_completo, flags=re.IGNORECASE)
         texto_limpo = re.sub(r'\d{2}/\d{2}/\d{4}\s\d{2}:\d{2}', '', texto_limpo)
@@ -150,6 +139,8 @@ if arquivo_pdf:
                 dados_extraidos["fundacao_sugerida"] = sigla
                 break
 
+        dados_extraidos["tipo_processo_sugerido"] = identificar_instrumento_juridico(texto_limpo)
+
         def extrair(regex, group=1):
             m = re.search(regex, texto_limpo, re.IGNORECASE)
             return m.group(group).strip() if m else ""
@@ -162,25 +153,21 @@ if arquivo_pdf:
         dados_extraidos["empresa"] = extrair(r'(?:Financiador[a]?|Empresa|Cooperante|Financiador):\s*(.*?)\n')
 
         m_coord = re.search(r'Responsável pelo projeto:\s*(.*?)\s*\(\s*(\d+)\s*\)', texto_limpo, re.IGNORECASE)
-        if m_coord:
-            dados_extraidos["coord_geral_pdf"] = {"nome": m_coord.group(1).strip(), "siape": m_coord.group(2).strip()}
+        if m_coord: dados_extraidos["coord_geral_pdf"] = {"nome": m_coord.group(1).strip(), "siape": m_coord.group(2).strip()}
 
         m_fisc = re.search(r'Fiscal:\s*(\d+)\s*-\s*(.*?)\s*\(', texto_limpo, re.IGNORECASE)
-        if m_fisc:
-            dados_extraidos["fiscal_pdf"] = {"siape": m_fisc.group(1).strip(), "nome": m_fisc.group(2).strip()}
+        if m_fisc: dados_extraidos["fiscal_pdf"] = {"siape": m_fisc.group(1).strip(), "nome": m_fisc.group(2).strip()}
 
         def extrair_bloco(inicio_regex, fins_regex):
             m_inicio = re.search(inicio_regex, texto_limpo, re.IGNORECASE)
-            if not m_inicio:
-                return ""
+            if not m_inicio: return ""
             idx = m_inicio.end()
             end_idx = len(texto_limpo)
             for f in fins_regex:
                 mf = re.search(f, texto_limpo[idx:], re.IGNORECASE)
                 if mf:
                     pos = idx + mf.start()
-                    if pos < end_idx:
-                        end_idx = pos
+                    if pos < end_idx: end_idx = pos
             return texto_limpo[idx:end_idx].strip()
 
         dados_extraidos["resumo"] = limpar_texto_bloco(extrair_bloco(r'Resumo:', [r'Objetivos:']))
@@ -205,10 +192,8 @@ if arquivo_pdf:
                 dados_extraidos["objetivo_estrategico"] = ""
 
         inov_bool = extrair_bloco(r'PROJETO POSSUI POTENCIAL DE INOVAÇÃO[^\n]*', [r'POTENCIAL DE INOVAÇÃO DO PROJETO'])
-        if "Sim" in inov_bool:
-            dados_extraidos["inovacao_bool"] = "Sim"
-        elif "Não" in inov_bool or "Nao" in inov_bool:
-            dados_extraidos["inovacao_bool"] = "Não"
+        if "Sim" in inov_bool: dados_extraidos["inovacao_bool"] = "Sim"
+        elif "Não" in inov_bool or "Nao" in inov_bool: dados_extraidos["inovacao_bool"] = "Não"
 
         pot = extrair_bloco(r'POTENCIAL DE INOVAÇÃO DO PROJETO', [r'REGIÕES DE ATUAÇÃO', r'UNIDADES VINCULADAS', r'5 - UNIDADES'])
         dados_extraidos["inovacao_potencial"] = limpar_texto_bloco(pot)
@@ -216,8 +201,7 @@ if arquivo_pdf:
         classif_blk = extrair_bloco(r'CLASSIFICAÇÕES', [r'PLANO DE GESTÃO'])
         for line in classif_blk.split('\n'):
             line = line.strip()
-            if not line or "TIPO DE CLASSIFICAÇÃO" in line.upper() or line.upper() == "CLASSIFICAÇÃO" or "CLASSIFICAÇÕES" in line.upper():
-                continue
+            if not line or "TIPO DE CLASSIFICAÇÃO" in line.upper() or line.upper() == "CLASSIFICAÇÃO" or "CLASSIFICAÇÕES" in line.upper(): continue
 
             m = re.search(r'\s+(\d{1,5}\.\d.*|\d{1,5}\s+-.*)', line)
             if m:
@@ -251,17 +235,13 @@ if arquivo_pdf:
             nome = nome_limpo[:corte_idx].strip(" -/")
 
             pos_inicio = match.end()
-            pos_fim = matches_participantes[i + 1].start() if i + 1 < len(matches_participantes) else pos_inicio + 400
+            pos_fim = matches_participantes[i+1].start() if i + 1 < len(matches_participantes) else pos_inicio + 400
             janela_texto = texto_limpo[pos_inicio:pos_fim]
 
             janela_limpa = " ".join(janela_texto.split())
             vinculo, lotacao, funcao, bolsa, ch_d, ch_f, data_ini, data_fim = "Outro", "", "Participante", "Não", "0", "0", "", ""
 
-            m_info = re.search(
-                r'(Coordenador Administrativo|Coordenador|Estagiário|Colaborador|Fiscal|Participante|Membro|Pesquisador|Responsável Técnico|Responsável|Técnico|Bolsista)\s+(Sim|Não|Nao)[\s\S]*?(\d+)\s+(\d+)\s+(\d{2}/\d{2}/\d{4})\s+(\d{2}/\d{2}/\d{4})',
-                janela_limpa,
-                re.IGNORECASE
-            )
+            m_info = re.search(r'(Coordenador Administrativo|Coordenador|Estagiário|Colaborador|Fiscal|Participante|Membro|Pesquisador|Responsável Técnico|Responsável|Técnico|Bolsista)\s+(Sim|Não|Nao)[\s\S]*?(\d+)\s+(\d+)\s+(\d{2}/\d{2}/\d{4})\s+(\d{2}/\d{2}/\d{4})', janela_limpa, re.IGNORECASE)
 
             prefixos_ufsm = [
                 "Estudante de Pós-graduação", "Estudante de Pós-Graduação", "Estudante de Graduação", "Estudante de graduação",
@@ -342,49 +322,31 @@ if arquivo_pdf:
                     if match_vinculo:
                         vinculo = match_vinculo.group(0).strip()
                         remainder = janela_limpa[match_vinculo.end():]
-                        lotacao = re.split(
-                            r'(?i)(Coordenador|Participante|Pesquisador|Estagiário|Colaborador|Membro|Fiscal|Responsável|Técnico|Bolsista)',
-                            remainder
-                        )[0].strip()
+                        lotacao = re.split(r'(?i)(Coordenador|Participante|Pesquisador|Estagiário|Colaborador|Membro|Fiscal|Responsável|Técnico|Bolsista)', remainder)[0].strip()
                         break
 
             dados_extraidos["equipe_raw"].append({
-                "Nome": nome,
-                "SIAPE": siape,
-                "Vínculo": vinculo.title(),
-                "Lotação": lotacao,
-                "Função": funcao,
-                "Bolsa": bolsa,
-                "CH_D": ch_d,
-                "CH_F": ch_f,
-                "Início": data_ini,
-                "Término": data_fim,
-                "Chefia Imediata": "",
-                "SIAPE Chefia": ""
+                "Nome": nome, "SIAPE": siape, "Vínculo": vinculo.title(), "Lotação": lotacao,
+                "Função": funcao, "Bolsa": bolsa, "CH_D": ch_d, "CH_F": ch_f, "Início": data_ini, "Término": data_fim,
+                "Chefia Imediata": "", "SIAPE Chefia": ""
             })
 
         unidades_blk = extrair_bloco(r'UNIDADES VINCULADAS\s*\n', [r'CLASSIFICAÇÕES', r'REGIÕES DE ATUAÇÃO', r'PARTICIPANTES'])
         for line in unidades_blk.split('\n'):
-            if "UNIDADE" in line or not line.strip():
-                continue
+            if "UNIDADE" in line or not line.strip(): continue
             m_u = re.search(r'(.+?)\s+(Responsável|Colaborador|Fiscal|Coordenador|Membro|Financiador|Participante)\s+(?:([0-9.,\-]+)\s+)?(\d{2}/\d{2}/\d{4})\s+(\d{2}/\d{2}/\d{4})', line, re.IGNORECASE)
             if m_u:
                 valor_u = m_u.group(3).strip() if m_u.group(3) else ""
-                if valor_u == "-":
-                    valor_u = ""
+                if valor_u == "-": valor_u = ""
                 dados_extraidos["unidades_raw"].append({
-                    "Unidade": m_u.group(1).strip(),
-                    "Função": m_u.group(2).strip(),
-                    "Valor": valor_u,
-                    "Início": m_u.group(4).strip(),
-                    "Término": m_u.group(5).strip()
+                    "Unidade": m_u.group(1).strip(), "Função": m_u.group(2).strip(),
+                    "Valor": valor_u, "Início": m_u.group(4).strip(), "Término": m_u.group(5).strip()
                 })
 
         regioes_blk = extrair_bloco(r'REGIÕES DE ATUAÇÃO\s*\n', [r'DECLARAÇÃO', r'APROVAÇÕES', r'UNIDADES VINCULADAS'])
         for line in regioes_blk.split('\n'):
             line_str = line.strip()
-            if "CIDADE" in line_str or not line_str:
-                continue
+            if "CIDADE" in line_str or not line_str: continue
             tokens = line_str.split()
             if len(tokens) >= 5:
                 if re.match(r'\d{2}/\d{2}/\d{4}', tokens[-1]) and re.match(r'\d{2}/\d{2}/\d{4}', tokens[-2]):
@@ -401,25 +363,21 @@ if arquivo_pdf:
                         uf = rem[-1]
                         cidade = " ".join(rem[:-1])
                     dados_extraidos["regioes_raw"].append({
-                        "Cidade": cidade,
-                        "UF": uf,
-                        "País": pais,
-                        "Início": ini,
-                        "Término": fim
+                        "Cidade": cidade, "UF": uf, "País": pais, "Início": ini, "Término": fim
                     })
 
     except Exception as e:
         st.error(f"❌ Erro no processamento do PDF: {str(e)}")
 
-# ============================================================================== 
+# ==============================================================================
 # INTERFACE STREAMLIT - CONTINUAÇÃO DOS PASSOS
-# ============================================================================== 
+# ==============================================================================
 if arquivo_pdf:
     st.markdown("---")
 
-    # ============================================================================== 
+    # ==============================================================================
     # PASSO 2: VALIDAÇÃO DA FUNDAÇÃO
-    # ============================================================================== 
+    # ==============================================================================
     st.markdown("### 2️⃣ Passo 2: Validação da Fundação")
 
     if tipo_processo == "Acordo de Cooperação Técnica (ACT)":
@@ -443,9 +401,9 @@ if arquivo_pdf:
 
     st.markdown("---")
 
-    # ============================================================================== 
+    # ==============================================================================
     # PASSO 3: EDIÇÃO DE DADOS E TABELAS
-    # ============================================================================== 
+    # ==============================================================================
     st.markdown("### 3️⃣ Passo 3: Conferência e Edição de Dados")
 
     with st.expander("📝 Detalhes do Projeto e Textos Longos", expanded=True):
@@ -515,33 +473,11 @@ if arquivo_pdf:
 
         equipe_final = dados_extraidos["equipe_raw"].copy()
         if f_nome and not any(e["SIAPE"] == f_siape for e in equipe_final):
-            equipe_final.append({
-                "Nome": f_nome,
-                "SIAPE": f_siape,
-                "Vínculo": "Docente",
-                "Lotação": "DEPARTAMENTO DE FITOTECNIA",
-                "Função": "Fiscal",
-                "CH_D": "0",
-                "CH_F": "0",
-                "Bolsa": "Não",
-                "Início": "",
-                "Término": "",
-                "Chefia Imediata": "",
-                "SIAPE Chefia": ""
-            })
+            equipe_final.append({"Nome": f_nome, "SIAPE": f_siape, "Vínculo": "Docente", "Lotação": "DEPARTAMENTO DE FITOTECNIA", "Função": "Fiscal", "CH_D": "0", "CH_F": "0", "Bolsa": "Não", "Início": "", "Término": "", "Chefia Imediata": "", "SIAPE Chefia": ""})
 
         df_equipe = pd.DataFrame(equipe_final).fillna("")
         df_equipe_edit = st.data_editor(df_equipe, num_rows="dynamic", key="ed_equipe", use_container_width=True)
         equipe_final = df_equipe_edit.fillna("").to_dict(orient="records")
-
-        # Remove estudantes/discentes da geração dos documentos de carga horária
-        equipe_para_gerar = [m for m in equipe_final if not eh_estudante(m)]
-        qtd_excluidos = len(equipe_final) - len(equipe_para_gerar)
-        if qtd_excluidos > 0:
-            st.warning(
-                f"⚠️ {qtd_excluidos} participante(s) identificado(s) como estudante/discente "
-                f"foram excluídos da geração dos documentos de carga horária."
-            )
 
     with t2:
         st.info("💡 **DICA:** Caso queira corrigir algum dado, **clique duas vezes** na célula.")
@@ -561,68 +497,63 @@ if arquivo_pdf:
         df_classif_edit = st.data_editor(df_classif, num_rows="dynamic", key="ed_classif", use_container_width=True)
         classificacoes_final = df_classif_edit.fillna("").to_dict(orient="records")
 
-    # ============================================================================== 
+    # ==============================================================================
     # PASSO 4: GERAÇÃO DE DOCUMENTOS (NUVEM / ZIP)
-    # ============================================================================== 
+    # ==============================================================================
     st.markdown("---")
     st.markdown("### 4️⃣ Passo 4: Geração de Documentos")
     st.write("Ao clicar no botão abaixo, o sistema irá preencher todos os documentos na nuvem e preparar um arquivo .ZIP para você baixar.")
+
+    # Mapeamento do instrumento jurídico sugerido para o rádio, sem impedir correção manual
+    tipo_sugerido = dados_extraidos.get("tipo_processo_sugerido", "Acordo de Cooperação Técnica (ACT)")
+    opcoes_processo = ["Acordo de Parceria (AP)", "Contrato Global (CG)", "Acordo de Cooperação Técnica (ACT)"]
+    try:
+        indice_padrao = opcoes_processo.index(tipo_sugerido)
+    except ValueError:
+        indice_padrao = 2
+
+    st.info(f"📌 Instrumento jurídico identificado automaticamente no relatório: **{tipo_sugerido}**. Se precisar, você pode alterar a seleção acima.")
+
+    # Substitui a seleção manual por um rádio com sugestão automática, mantendo a possibilidade de correção
+    tipo_processo = st.radio(
+        "Selecione o Tipo de Processo:",
+        opcoes_processo,
+        index=indice_padrao,
+        horizontal=True,
+        key="tipo_processo_radio"
+    )
 
     if st.button("🚀 Processar Documentos"):
         with st.spinner("⏳ Processando e gerando os documentos... Por favor, aguarde!"):
             logs = []
 
-            if tipo_processo == "Contrato Global (CG)":
-                pasta_alvo = f"Modelos/AG/{fund_sigla}" if status_fund == "Já definida" else "Modelos/AG/SEM"
-            elif tipo_processo == "Acordo de Parceria (AP)":
-                pasta_alvo = f"Modelos/AP/{fund_sigla}" if status_fund == "Já definida" else "Modelos/AP/SEM"
-            else:
-                pasta_alvo = "Modelos/ACT"
+            if tipo_processo == "Contrato Global (CG)": pasta_alvo = f"Modelos/AG/{fund_sigla}" if status_fund == "Já definida" else "Modelos/AG/SEM"
+            elif tipo_processo == "Acordo de Parceria (AP)": pasta_alvo = f"Modelos/AP/{fund_sigla}" if status_fund == "Já definida" else "Modelos/AP/SEM"
+            else: pasta_alvo = "Modelos/ACT"
 
             ctx_global = {
-                "data_atual": data_extenso(datetime.now()),
-                "dataatual": data_extenso(datetime.now()),
-                "nome_projeto": tit_proj,
-                "nomeprojeto": tit_proj,
-                "titulo_projeto": tit_proj,
-                "tituloprojeto": tit_proj,
-                "n_projeto": n_proj,
-                "nprojeto": n_proj,
+                "data_atual": data_extenso(datetime.now()), "dataatual": data_extenso(datetime.now()),
+                "nome_projeto": tit_proj, "nomeprojeto": tit_proj,
+                "titulo_projeto": tit_proj, "tituloprojeto": tit_proj,
+                "n_projeto": n_proj, "nprojeto": n_proj,
                 "classificacao": dados_extraidos["classificacao"],
-                "nome_coord": c_g_n,
-                "nomecoord": c_g_n,
-                "siape_coord": c_g_s,
-                "siapecoord": c_g_s,
-                "nome_fiscal": f_nome,
-                "nomefiscal": f_nome,
+                "nome_coord": c_g_n, "nomecoord": c_g_n,
+                "siape_coord": c_g_s, "siapecoord": c_g_s,
+                "nome_fiscal": f_nome, "nomefiscal": f_nome,
                 "fiscal": f_nome,
-                "siape_fiscal": f_siape,
-                "siapefiscal": f_siape,
-                "nome_coord_adm": nome_coord_adm,
-                "nomecoordadm": nome_coord_adm,
-                "siape_adm": siape_coord_adm,
-                "siapeadm": siape_coord_adm,
-                "membros": equipe_para_gerar,
-                "objetivos": objetivos,
-                "metas": metas,
-                "justificativa": justificativa,
-                "resultados": resultados,
-                "unidades": unidades_final,
-                "regioes": regioes_final,
+                "siape_fiscal": f_siape, "siapefiscal": f_siape,
+                "nome_coord_adm": nome_coord_adm, "nomecoordadm": nome_coord_adm,
+                "siape_adm": siape_coord_adm, "siapeadm": siape_coord_adm,
+                "membros": equipe_final, "objetivos": objetivos, "metas": metas,
+                "justificativa": justificativa, "resultados": resultados,
+                "unidades": unidades_final, "regioes": regioes_final,
                 "classificacoes": classificacoes_final,
-                "empresa": empresa_input,
-                "importancia_projeto": importancia,
-                "importanciaprojeto": importancia,
-                "justificativa_fund": justificativa_fund,
-                "justificativafund": justificativa_fund,
-                "diretor_unidade": diretor_unidade,
-                "diretorunidade": diretor_unidade,
-                "siape_diretor": siape_diretor,
-                "siapediretor": siape_diretor,
-                "plano_gestao": plano_gestao,
-                "planogestao": plano_gestao,
-                "objetivo_estrategico": objetivo_estrategico,
-                "objetivoestrategico": objetivo_estrategico
+                "empresa": empresa_input, "importancia_projeto": importancia, "importanciaprojeto": importancia,
+                "justificativa_fund": justificativa_fund, "justificativafund": justificativa_fund,
+                "diretor_unidade": diretor_unidade, "diretorunidade": diretor_unidade,
+                "siape_diretor": siape_diretor, "siapediretor": siape_diretor,
+                "plano_gestao": plano_gestao, "planogestao": plano_gestao,
+                "objetivo_estrategico": objetivo_estrategico, "objetivoestrategico": objetivo_estrategico
             }
             ctx_global.update(ctx_fundacao)
 
@@ -648,9 +579,8 @@ if arquivo_pdf:
                             is_lab = any(kw in nome_minusculo for kw in keywords_lab)
 
                             if is_individual:
-                                for membro in equipe_para_gerar:
-                                    if not membro.get("Nome") or str(membro.get("Nome")).strip() == "":
-                                        continue
+                                for membro in equipe_final:
+                                    if not membro.get("Nome") or str(membro.get("Nome")).strip() == "": continue
                                     nome_limpo = re.sub(r'[^\w]', '_', str(membro.get("Nome")))[:40].strip('_')
                                     nome_doc_sem_ext = arquivo.replace(".docx", "")
 
@@ -682,18 +612,14 @@ if arquivo_pdf:
                                         doc_ind.render(ctx_membro)
                                         doc_buffer = io.BytesIO()
                                         doc_ind.save(doc_buffer)
-                                        zip_file.writestr(
-                                            f"02_Documentos_Individuais/{nome_limpo}/{nome_limpo}_{nome_doc_sem_ext}.docx",
-                                            doc_buffer.getvalue()
-                                        )
+                                        zip_file.writestr(f"02_Documentos_Individuais/{nome_limpo}/{nome_limpo}_{nome_doc_sem_ext}.docx", doc_buffer.getvalue())
                                     except Exception as e:
                                         logs.append(f"Erro em {arquivo} para {membro.get('Nome')}: {str(e)}")
 
                             elif is_lab:
                                 if num_labs > 0:
                                     for lab in laboratorios:
-                                        if not lab.get("nome_lab") or str(lab.get("nome_lab")).strip() == "":
-                                            continue
+                                        if not lab.get("nome_lab") or str(lab.get("nome_lab")).strip() == "": continue
                                         nome_lab_limpo = re.sub(r'[^\w]', '_', str(lab.get("nome_lab")))[:40].strip('_')
                                         nome_doc_sem_ext = arquivo.replace(".docx", "")
 
@@ -708,10 +634,7 @@ if arquivo_pdf:
                                             doc_lab.render(ctx_lab)
                                             doc_buffer = io.BytesIO()
                                             doc_lab.save(doc_buffer)
-                                            zip_file.writestr(
-                                                f"03_Documentos_Laboratorios/{nome_lab_limpo}_{nome_doc_sem_ext}.docx",
-                                                doc_buffer.getvalue()
-                                            )
+                                            zip_file.writestr(f"03_Documentos_Laboratorios/{nome_lab_limpo}_{nome_doc_sem_ext}.docx", doc_buffer.getvalue())
                                         except Exception as e:
                                             logs.append(f"Erro em {arquivo} para {lab.get('nome_lab')}: {str(e)}")
 
@@ -735,13 +658,14 @@ if arquivo_pdf:
 
                             def escrever_excel(celula, valor):
                                 val_str = str(valor).strip() if valor is not None else ""
-                                if val_str in ["", "-", "None", "Não se aplica"]:
-                                    val_str = None
+                                if val_str in ["", "-", "None", "Não se aplica"]: val_str = None
                                 try:
                                     r_row, r_col = coordinate_to_tuple(celula)
+                                    mesclado = False
                                     for merged_range in list(ws.merged_cells.ranges):
                                         min_col, min_row, max_col, max_row = merged_range.bounds
                                         if min_col <= r_col <= max_col and min_row <= r_row <= max_row:
+                                            mesclado = True
                                             intervalo = str(merged_range)
                                             ws.unmerge_cells(intervalo)
                                             ws.cell(row=min_row, column=min_col).value = val_str
@@ -756,8 +680,7 @@ if arquivo_pdf:
                             # ==========================================================
                             if tipo_processo == "Acordo de Cooperação Técnica (ACT)":
                                 escrever_excel("F17", tit_proj)
-                                if dados_extraidos.get("data_inicio_proj", ""):
-                                    escrever_excel("C18", dados_extraidos.get("data_inicio_proj", ""))
+                                if dados_extraidos.get("data_inicio_proj", ""): escrever_excel("C18", dados_extraidos.get("data_inicio_proj", ""))
                                 escrever_excel("F19", data_termino_edit)
                                 escrever_excel("F20", c_g_n)
                                 escrever_excel("F21", c_g_s)
@@ -779,8 +702,7 @@ if arquivo_pdf:
                             # ==========================================================
                             else:
                                 escrever_excel("B17", tit_proj)
-                                if dados_extraidos.get("data_inicio_proj", ""):
-                                    escrever_excel("B18", dados_extraidos.get("data_inicio_proj", ""))
+                                if dados_extraidos.get("data_inicio_proj", ""): escrever_excel("B18", dados_extraidos.get("data_inicio_proj", ""))
                                 escrever_excel("B19", data_termino_edit)
                                 escrever_excel("B20", c_g_n)
                                 escrever_excel("B21", c_g_s)
@@ -804,25 +726,20 @@ if arquivo_pdf:
 
                                 for idx, c in enumerate(classificacoes_final):
                                     l_c = 49 + idx
-                                    if l_c > 63:
-                                        break
+                                    if l_c > 63: break
                                     escrever_excel(f"A{l_c}", c.get("Tipo de Classificação", ""))
                                     escrever_excel(f"G{l_c}", c.get("Classificação", ""))
 
                                 for idx, u in enumerate(unidades_final):
                                     l_u = 76 + idx
-                                    if l_u > 90:
-                                        break
+                                    if l_u > 90: break
                                     escrever_excel(f"A{l_u}", u.get("Unidade", ""))
                                     escrever_excel(f"F{l_u}", u.get("Função", ""))
                                     escrever_excel(f"I{l_u}", u.get("Valor", ""))
                                     escrever_excel(f"K{l_u}", u.get("Início", ""))
                                     escrever_excel(f"L{l_u}", u.get("Término", ""))
 
-                                equipe_excel = [
-                                    p for p in equipe_para_gerar
-                                    if p.get("Função", "") != "Fiscal" and str(p.get("Nome", "")).strip() != ""
-                                ]
+                                equipe_excel = [p for p in equipe_final if p.get("Função", "") != "Fiscal" and str(p.get("Nome", "")).strip() != ""]
                                 for idx, p in enumerate(equipe_excel):
                                     linha = 95 + idx
                                     escrever_excel(f"A{linha}", p.get("Nome", ""))
@@ -838,8 +755,7 @@ if arquivo_pdf:
 
                                 for idx, r_reg in enumerate(regioes_final):
                                     l_r = 142 + idx
-                                    if l_r > 184:
-                                        break
+                                    if l_r > 184: break
                                     escrever_excel(f"A{l_r}", r_reg.get("Cidade", ""))
                                     escrever_excel(f"E{l_r}", r_reg.get("UF", ""))
                                     escrever_excel(f"G{l_r}", r_reg.get("País", ""))
@@ -848,10 +764,8 @@ if arquivo_pdf:
 
                                 for idx, lab in enumerate(laboratorios):
                                     l_lab = 189 + idx
-                                    if l_lab > 203:
-                                        break
-                                    if not lab.get("nome_lab") or str(lab.get("nome_lab")).strip() == "":
-                                        continue
+                                    if l_lab > 203: break
+                                    if not lab.get("nome_lab") or str(lab.get("nome_lab")).strip() == "": continue
                                     escrever_excel(f"A{l_lab}", lab.get("nome_lab", ""))
                                     escrever_excel(f"F{l_lab}", lab.get("unidade_lab", ""))
                                     escrever_excel(f"I{l_lab}", lab.get("nome_resp_lab", ""))
@@ -865,8 +779,7 @@ if arquivo_pdf:
 
                 if logs:
                     st.warning("⚠️ Foram gerados arquivos, mas ocorreram alguns avisos:")
-                    for l in logs:
-                        st.error(l)
+                    for l in logs: st.error(l)
                 else:
                     st.success("🔥 Documentos gerados e empacotados com Sucesso Absoluto!")
                     st.warning("📝 **LEMBRETE:** Após baixar e descompactar o ZIP, todos os documentos estarão em **Word (.docx)** e **Excel (.xlsx)**. Pode abri-los e editar qualquer texto normalmente no seu computador.")
@@ -883,11 +796,8 @@ if arquivo_pdf:
             type="primary"
         )
 
-# ============================================================================== 
+# ==============================================================================
 # ASSINATURA E CRÉDITOS DO DESENVOLVEDOR
-# ============================================================================== 
+# ==============================================================================
 st.markdown("<br><hr>", unsafe_allow_html=True)
-st.markdown(
-    "<div style='text-align: center; color: #888888; padding: 10px; font-size: 14px;'>⚡ <b>Raichu Pro</b> | Desenvolvido por Julio Maia 👨‍💻</div>",
-    unsafe_allow_html=True
-)
+st.markdown("<div style='text-align: center; color: #888888; padding: 10px; font-size: 14px;'>⚡ <b>Raichu Pro</b> | Desenvolvido por Julio Maia 👨‍💻</div>", unsafe_allow_html=True)
