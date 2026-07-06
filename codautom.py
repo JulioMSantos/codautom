@@ -380,6 +380,24 @@ if arquivo_pdf:
     # ==============================================================================
     st.markdown("### 2️⃣ Passo 2: Validação da Fundação")
 
+    # Primeiro lemos a sugestão para podermos configurar o radio depois
+    tipo_sugerido = dados_extraidos.get("tipo_processo_sugerido", "Acordo de Cooperação Técnica (ACT)")
+    opcoes_processo = ["Acordo de Parceria (AP)", "Contrato Global (CG)", "Acordo de Cooperação Técnica (ACT)"]
+    try:
+        indice_padrao = opcoes_processo.index(tipo_sugerido)
+    except ValueError:
+        indice_padrao = 2
+
+    st.info(f"📌 Instrumento jurídico identificado automaticamente no relatório: **{tipo_sugerido}**.")
+
+    tipo_processo = st.radio(
+        "Selecione o Tipo de Processo (ou confirme a sugestão):",
+        opcoes_processo,
+        index=indice_padrao,
+        horizontal=True,
+        key="tipo_processo_radio"
+    )
+
     if tipo_processo == "Acordo de Cooperação Técnica (ACT)":
         st.info("💡 Processos do tipo **ACT** não necessitam de Fundação de Apoio.")
         status_fund, fund_sigla, ctx_fundacao = "Não possui", "ACT", {}
@@ -473,7 +491,7 @@ if arquivo_pdf:
 
         equipe_final = dados_extraidos["equipe_raw"].copy()
         if f_nome and not any(e["SIAPE"] == f_siape for e in equipe_final):
-            equipe_final.append({"Nome": f_nome, "SIAPE": f_siape, "Vínculo": "Docente", "Lotação": "DEPARTAMENTO DE FITOTECNIA", "Função": "Fiscal", "CH_D": "0", "CH_F": "0", "Bolsa": "Não", "Início": "", "Término": "", "Chefia Imediata": "", "SIAPE Chefia": ""})
+            equipe_final.append({"Nome": f_nome, "SIAPE": f_siape, "Vínculo": "Docente", "Lotação": "DEPARTAMENTO", "Função": "Fiscal", "CH_D": "0", "CH_F": "0", "Bolsa": "Não", "Início": "", "Término": "", "Chefia Imediata": "", "SIAPE Chefia": ""})
 
         df_equipe = pd.DataFrame(equipe_final).fillna("")
         df_equipe_edit = st.data_editor(df_equipe, num_rows="dynamic", key="ed_equipe", use_container_width=True)
@@ -503,25 +521,6 @@ if arquivo_pdf:
     st.markdown("---")
     st.markdown("### 4️⃣ Passo 4: Geração de Documentos")
     st.write("Ao clicar no botão abaixo, o sistema irá preencher todos os documentos na nuvem e preparar um arquivo .ZIP para você baixar.")
-
-    # Mapeamento do instrumento jurídico sugerido para o rádio, sem impedir correção manual
-    tipo_sugerido = dados_extraidos.get("tipo_processo_sugerido", "Acordo de Cooperação Técnica (ACT)")
-    opcoes_processo = ["Acordo de Parceria (AP)", "Contrato Global (CG)", "Acordo de Cooperação Técnica (ACT)"]
-    try:
-        indice_padrao = opcoes_processo.index(tipo_sugerido)
-    except ValueError:
-        indice_padrao = 2
-
-    st.info(f"📌 Instrumento jurídico identificado automaticamente no relatório: **{tipo_sugerido}**. Se precisar, você pode alterar a seleção acima.")
-
-    # Substitui a seleção manual por um rádio com sugestão automática, mantendo a possibilidade de correção
-    tipo_processo = st.radio(
-        "Selecione o Tipo de Processo:",
-        opcoes_processo,
-        index=indice_padrao,
-        horizontal=True,
-        key="tipo_processo_radio"
-    )
 
     if st.button("🚀 Processar Documentos"):
         with st.spinner("⏳ Processando e gerando os documentos... Por favor, aguarde!"):
@@ -581,6 +580,17 @@ if arquivo_pdf:
                             if is_individual:
                                 for membro in equipe_final:
                                     if not membro.get("Nome") or str(membro.get("Nome")).strip() == "": continue
+                                    
+                                    # =========================================================
+                                    # 🛑 FILTRO CIRÚRGICO DE ESTUDANTES E BOLSISTAS ATIVADO
+                                    # =========================================================
+                                    vinculo_membro = str(membro.get("Vínculo", "")).lower()
+                                    funcao_membro = str(membro.get("Função", "")).lower()
+                                    
+                                    if "estudante" in vinculo_membro or "bolsista" in funcao_membro:
+                                        continue 
+                                    # =========================================================
+
                                     nome_limpo = re.sub(r'[^\w]', '_', str(membro.get("Nome")))[:40].strip('_')
                                     nome_doc_sem_ext = arquivo.replace(".docx", "")
 
@@ -698,7 +708,7 @@ if arquivo_pdf:
                                 escrever_excel("A44", resultados)
 
                             # ==========================================================
-                            # 🎯 LÓGICA EXCLUSIVA DO CG E AP (MANTIDA INTACTA)
+                            # 🎯 LÓGICA EXCLUSIVA DO CG E AP
                             # ==========================================================
                             else:
                                 escrever_excel("B17", tit_proj)
