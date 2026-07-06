@@ -213,13 +213,12 @@ if arquivo_pdf:
                     dados_extraidos["classificacoes_raw"].append({"Tipo de Classificação": line, "Classificação": ""})
 
         # ==============================================================================
-        # EXTRAÇÃO DE PARTICIPANTES (CORRIGIDA)
+        # EXTRAÇÃO DE PARTICIPANTES
         # ==============================================================================
         bloco_participantes = extrair_bloco(r'PARTICIPANTES', [r'UNIDADES VINCULADAS\s*\n', r'CLASSIFICAÇÕES', r'REGIÕES DE ATUAÇÃO'])
         if not bloco_participantes:
             bloco_participantes = texto_limpo
 
-        # ADICIONADO O APÓSTROFO (\') NA REGEX PARA PEGAR NOMES COMO "D'ALMEIDA"
         matches_participantes = list(re.finditer(r'(\d{5,15})\s*-\s*([A-ZÀ-Ÿ\s\']+?)\s*(?=[A-ZÀ-Ÿ][a-zà-ÿ]|UNIDADES VINCULADAS|CLASSIFICAÇÕES|$)', bloco_participantes))
         
         for i, match in enumerate(matches_participantes):
@@ -257,7 +256,7 @@ if arquivo_pdf:
 
             m_info = re.search(r'(Coordenador Administrativo|Coordenador|Estagiário|Colaborador|Fiscal|Participante|Membro|Pesquisador|Responsável Técnico|Responsável|Técnico|Bolsista)\s+(Sim|Não|Nao)[\s\S]*?(\d+)\s+(\d+)\s+(\d{2}/\d{2}/\d{4})\s+(\d{2}/\d{2}/\d{4})', janela_limpa, re.IGNORECASE)
 
-            # LISTA REGEX PARA VÍNCULOS (Ignora quebras de linha sujas como "Pós- graduação")
+            # LISTA REGEX PARA VÍNCULOS
             prefixos_ufsm_regex = [
                 r"Estudante de Pós-\s*graduação", r"Estudante de Pós-Graduação", r"Estudante de Graduação", r"Estudante de graduação",
                 r"Estudante de Ensino Médio", r"Técnico[- ]Administrativo em Educação", r"Técnico[- ]Administrativo", r"Tecnico Administrativo",
@@ -540,6 +539,7 @@ if arquivo_pdf:
     if st.button("🚀 Processar Documentos"):
         with st.spinner("⏳ Processando e gerando os documentos... Por favor, aguarde!"):
             logs = []
+            estudantes_ignorados_log = [] # <--- NOVA LISTA PARA FEEDBACK VISUAL
 
             if tipo_processo == "Contrato Global (CG)": pasta_alvo = f"Modelos/AG/{fund_sigla}" if status_fund == "Já definida" else "Modelos/AG/SEM"
             elif tipo_processo == "Acordo de Parceria (AP)": pasta_alvo = f"Modelos/AP/{fund_sigla}" if status_fund == "Já definida" else "Modelos/AP/SEM"
@@ -597,12 +597,15 @@ if arquivo_pdf:
                                     if not membro.get("Nome") or str(membro.get("Nome")).strip() == "": continue
                                     
                                     # =========================================================
-                                    # 🛑 FILTRO CIRÚRGICO DE ESTUDANTES E BOLSISTAS ATIVADO
+                                    # 🛑 FILTRO CIRÚRGICO DE ESTUDANTES E BOLSISTAS 
                                     # =========================================================
                                     vinculo_membro = str(membro.get("Vínculo", "")).lower()
                                     funcao_membro = str(membro.get("Função", "")).lower()
                                     
-                                    if "estudante" in vinculo_membro or "bolsista" in funcao_membro:
+                                    if "estudante" in vinculo_membro or "bolsista" in funcao_membro or "estagiário" in funcao_membro or "estagiario" in funcao_membro:
+                                        if arquivo == arquivos_na_pasta[0] or len(estudantes_ignorados_log) < sum("estudante" in str(m.get("Vínculo", "")).lower() for m in equipe_final):
+                                            if membro.get("Nome") not in estudantes_ignorados_log:
+                                                estudantes_ignorados_log.append(str(membro.get("Nome")))
                                         continue 
                                     # =========================================================
 
@@ -700,9 +703,6 @@ if arquivo_pdf:
                                 except Exception as err:
                                     logs.append(f"Aviso na célula {celula}: {str(err)}")
 
-                            # ==========================================================
-                            # 🎯 SEPARAÇÃO CIRÚRGICA: LÓGICA EXCLUSIVA DO ACT
-                            # ==========================================================
                             if tipo_processo == "Acordo de Cooperação Técnica (ACT)":
                                 escrever_excel("F17", tit_proj)
                                 if dados_extraidos.get("data_inicio_proj", ""): escrever_excel("C18", dados_extraidos.get("data_inicio_proj", ""))
@@ -722,9 +722,6 @@ if arquivo_pdf:
                                 escrever_excel("A40", justificativa)
                                 escrever_excel("A44", resultados)
 
-                            # ==========================================================
-                            # 🎯 LÓGICA EXCLUSIVA DO CG E AP
-                            # ==========================================================
                             else:
                                 escrever_excel("B17", tit_proj)
                                 if dados_extraidos.get("data_inicio_proj", ""): escrever_excel("B18", dados_extraidos.get("data_inicio_proj", ""))
@@ -807,6 +804,11 @@ if arquivo_pdf:
                     for l in logs: st.error(l)
                 else:
                     st.success("🔥 Documentos gerados e empacotados com Sucesso Absoluto!")
+                    
+                    # === NOVO AVISO VISUAL DOS ESTUDANTES IGNORADOS ===
+                    if estudantes_ignorados_log:
+                        st.info(f"🎓 **Filtro Automático:** O sistema bloqueou propositalmente a geração de documentos individuais (Carga Horária) para **{len(estudantes_ignorados_log)} estudante(s)/bolsista(s)**: {', '.join(estudantes_ignorados_log)}.")
+                    
                     st.warning("📝 **LEMBRETE:** Após baixar e descompactar o ZIP, todos os documentos estarão em **Word (.docx)** e **Excel (.xlsx)**. Pode abri-los e editar qualquer texto normalmente no seu computador.")
 
                 st.session_state['zip_data'] = zip_buffer.getvalue()
