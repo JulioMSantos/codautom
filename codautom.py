@@ -212,7 +212,16 @@ if arquivo_pdf:
                 if len(line) > 5:
                     dados_extraidos["classificacoes_raw"].append({"Tipo de Classificação": line, "Classificação": ""})
 
-        matches_participantes = list(re.finditer(r'(\d{5,15})\s*-\s*([A-ZÀ-Ÿ\s]+?)\s*(?=[A-ZÀ-Ÿ][a-zà-ÿ]|UNIDADES VINCULADAS|CLASSIFICAÇÕES|$)', texto_limpo))
+        # ==============================================================================
+        # EXTRAÇÃO DE PARTICIPANTES (CORRIGIDA)
+        # ==============================================================================
+        bloco_participantes = extrair_bloco(r'PARTICIPANTES', [r'UNIDADES VINCULADAS\s*\n', r'CLASSIFICAÇÕES', r'REGIÕES DE ATUAÇÃO'])
+        if not bloco_participantes:
+            bloco_participantes = texto_limpo
+
+        # ADICIONADO O APÓSTROFO (\') NA REGEX PARA PEGAR NOMES COMO "D'ALMEIDA"
+        matches_participantes = list(re.finditer(r'(\d{5,15})\s*-\s*([A-ZÀ-Ÿ\s\']+?)\s*(?=[A-ZÀ-Ÿ][a-zà-ÿ]|UNIDADES VINCULADAS|CLASSIFICAÇÕES|$)', bloco_participantes))
+        
         for i, match in enumerate(matches_participantes):
             siape = match.group(1).strip()
             nome_bruto = match.group(2).strip()
@@ -233,21 +242,26 @@ if arquivo_pdf:
                     corte_idx = idx
 
             nome = nome_limpo[:corte_idx].strip(" -/")
+            
+            # FILTRO ATIVO: Se não sobrou nome, pula a linha (evita falso positivo com Lupa Data ou CNPJ)
+            if not nome or len(nome) < 2:
+                continue
 
             pos_inicio = match.end()
             pos_fim = matches_participantes[i+1].start() if i + 1 < len(matches_participantes) else pos_inicio + 400
-            janela_texto = texto_limpo[pos_inicio:pos_fim]
+            
+            janela_texto = bloco_participantes[pos_inicio:pos_fim]
 
             janela_limpa = " ".join(janela_texto.split())
             vinculo, lotacao, funcao, bolsa, ch_d, ch_f, data_ini, data_fim = "Outro", "", "Participante", "Não", "0", "0", "", ""
 
             m_info = re.search(r'(Coordenador Administrativo|Coordenador|Estagiário|Colaborador|Fiscal|Participante|Membro|Pesquisador|Responsável Técnico|Responsável|Técnico|Bolsista)\s+(Sim|Não|Nao)[\s\S]*?(\d+)\s+(\d+)\s+(\d{2}/\d{2}/\d{4})\s+(\d{2}/\d{2}/\d{4})', janela_limpa, re.IGNORECASE)
 
-            prefixos_ufsm = [
-                "Estudante de Pós-graduação", "Estudante de Pós-Graduação", "Estudante de Graduação", "Estudante de graduação",
-                "Estudante de Ensino Médio", "Técnico-Administrativo em Educação", "Técnico Administrativo em Educação",
-                "Técnico-Administrativo", "Técnico Administrativo", "Tecnico Administrativo", "Docente",
-                "Pesquisador", "Participante Externo", "Visitante", "Estudante", "Servidor", "Outro"
+            # LISTA REGEX PARA VÍNCULOS (Ignora quebras de linha sujas como "Pós- graduação")
+            prefixos_ufsm_regex = [
+                r"Estudante de Pós-\s*graduação", r"Estudante de Pós-Graduação", r"Estudante de Graduação", r"Estudante de graduação",
+                r"Estudante de Ensino Médio", r"Técnico[- ]Administrativo em Educação", r"Técnico[- ]Administrativo", r"Tecnico Administrativo",
+                r"Docente", r"Pesquisador", r"Participante Externo", r"Visitante", r"Estudante", r"Servidor", r"Outro"
             ]
 
             if m_info:
@@ -271,10 +285,11 @@ if arquivo_pdf:
                     nome = nome_final_teste[:corte_idx_2].strip(" -/")
 
                 vinculo_encontrado = False
-                for prefixo in prefixos_ufsm:
-                    match_vinculo = re.match(r'(?i)^' + re.escape(prefixo), text_before)
+                for prefixo in prefixos_ufsm_regex:
+                    match_vinculo = re.match(r'(?i)^' + prefixo, text_before)
                     if match_vinculo:
                         vinculo = match_vinculo.group(0).strip()
+                        vinculo = re.sub(r'\s+', ' ', vinculo).replace('- ', '-') 
                         lotacao = text_before[match_vinculo.end():].strip()
                         vinculo_encontrado = True
                         break
@@ -317,10 +332,11 @@ if arquivo_pdf:
                 data_ini = m_info.group(5)
                 data_fim = m_info.group(6)
             else:
-                for prefixo in prefixos_ufsm:
-                    match_vinculo = re.match(r'(?i)^' + re.escape(prefixo), janela_limpa)
+                for prefixo in prefixos_ufsm_regex:
+                    match_vinculo = re.match(r'(?i)^' + prefixo, janela_limpa)
                     if match_vinculo:
                         vinculo = match_vinculo.group(0).strip()
+                        vinculo = re.sub(r'\s+', ' ', vinculo).replace('- ', '-')
                         remainder = janela_limpa[match_vinculo.end():]
                         lotacao = re.split(r'(?i)(Coordenador|Participante|Pesquisador|Estagiário|Colaborador|Membro|Fiscal|Responsável|Técnico|Bolsista)', remainder)[0].strip()
                         break
@@ -380,7 +396,6 @@ if arquivo_pdf:
     # ==============================================================================
     st.markdown("### 2️⃣ Passo 2: Validação da Fundação")
 
-    # Primeiro lemos a sugestão para podermos configurar o radio depois
     tipo_sugerido = dados_extraidos.get("tipo_processo_sugerido", "Acordo de Cooperação Técnica (ACT)")
     opcoes_processo = ["Acordo de Parceria (AP)", "Contrato Global (CG)", "Acordo de Cooperação Técnica (ACT)"]
     try:
