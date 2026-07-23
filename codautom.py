@@ -636,6 +636,21 @@ if arquivo_pdf:
                                         continue 
                                     # =========================================================
 
+                                    # =========================================================
+                                    # 🛑 NOVO FILTRO: CARGA HORÁRIA ZERADA
+                                    # =========================================================
+                                    ch_d_val = str(membro.get("CH_D", "0")).strip()
+                                    ch_f_val = str(membro.get("CH_F", "0")).strip()
+
+                                    # Se for documento de CH Dentro e o valor estiver zerado, pula
+                                    if "ch_dentro" in nome_minusculo and ch_d_val in ["0", "0.0", "0,0", "-", ""]:
+                                        continue
+                                        
+                                    # Se for documento de CH Fora e o valor estiver zerado, pula
+                                    if "ch_fora" in nome_minusculo and ch_f_val in ["0", "0.0", "0,0", "-", ""]:
+                                        continue
+                                    # =========================================================
+
                                     nome_limpo = re.sub(r'[^\w]', '_', str(membro.get("Nome")))[:40].strip('_')
                                     nome_doc_sem_ext = arquivo.replace(".docx", "")
 
