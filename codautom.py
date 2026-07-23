@@ -539,7 +539,33 @@ if arquivo_pdf:
     if st.button("🚀 Processar Documentos"):
         with st.spinner("⏳ Processando e gerando os documentos... Por favor, aguarde!"):
             logs = []
-            estudantes_ignorados_log = [] # <--- NOVA LISTA PARA FEEDBACK VISUAL
+            estudantes_ignorados_log = []
+
+            # ==========================================================================
+            # 🎯 LÓGICA DO NOME DO INSTRUMENTO JURÍDICO COMPLETO (EXCEL)
+            # ==========================================================================
+            base_instr = "Acordo de Cooperação Técnica"
+            if tipo_processo == "Acordo de Parceria (AP)":
+                base_instr = "Acordo de Parceria"
+            elif tipo_processo == "Contrato Global (CG)":
+                base_instr = "Contrato"
+
+            # Puxa o sufixo da classificação principal (Ex: "Pesquisa", "Extensão")
+            sufixo_classificacao = dados_extraidos.get("classificacao", "").strip()
+            
+            # Se for extensão, procura o termo específico e remove a numeração da frente
+            for c in classificacoes_final:
+                if "caracterização das ações de extensão" in str(c.get("Tipo de Classificação", "")).lower():
+                    val = str(c.get("Classificação", ""))
+                    m_suf = re.search(r'[\d\.]+\s*-\s*(.*)', val)
+                    if m_suf:
+                        sufixo_classificacao = m_suf.group(1).strip()
+                    else:
+                        sufixo_classificacao = val.strip()
+                    break
+            
+            texto_instrumento_completo = f"{base_instr} com {sufixo_classificacao}" if sufixo_classificacao else base_instr
+            # ==========================================================================
 
             if tipo_processo == "Contrato Global (CG)": pasta_alvo = f"Modelos/AG/{fund_sigla}" if status_fund == "Já definida" else "Modelos/AG/SEM"
             elif tipo_processo == "Acordo de Parceria (AP)": pasta_alvo = f"Modelos/AP/{fund_sigla}" if status_fund == "Já definida" else "Modelos/AP/SEM"
@@ -551,6 +577,7 @@ if arquivo_pdf:
                 "titulo_projeto": tit_proj, "tituloprojeto": tit_proj,
                 "n_projeto": n_proj, "nprojeto": n_proj,
                 "classificacao": dados_extraidos["classificacao"],
+                "instrumento_completo": texto_instrumento_completo, # Disponível também para o Word, se precisar no futuro
                 "nome_coord": c_g_n, "nomecoord": c_g_n,
                 "siape_coord": c_g_s, "siapecoord": c_g_s,
                 "nome_fiscal": f_nome, "nomefiscal": f_nome,
@@ -715,7 +742,9 @@ if arquivo_pdf:
                                 escrever_excel("F25", siape_coord_adm)
                                 escrever_excel("F26", n_proj)
                                 escrever_excel("F27", dados_extraidos.get("classificacao", ""))
-                                escrever_excel("F28", tipo_processo)
+                                
+                                # AQUI INSERE O NOVO INSTRUMENTO JURÍDICO COMPLETO
+                                escrever_excel("F28", texto_instrumento_completo)
 
                                 escrever_excel("A32", resumo)
                                 escrever_excel("A36", objetivos)
@@ -734,12 +763,14 @@ if arquivo_pdf:
                                 escrever_excel("C25", siape_coord_adm)
                                 escrever_excel("C26", n_proj)
                                 escrever_excel("C27", dados_extraidos.get("classificacao", ""))
-                                escrever_excel("C28", tipo_processo)
+                                
+                                # AQUI INSERE O NOVO INSTRUMENTO JURÍDICO COMPLETO
+                                escrever_excel("C28", texto_instrumento_completo)
 
-                                escrever_excel("A32", resumo)
-                                escrever_excel("A36", objetivos)
-                                escrever_excel("A40", justificativa)
-                                escrever_excel("A44", resultados)
+                                escrever_excel("A31", resumo)
+                                escrever_excel("A35", objetivos)
+                                escrever_excel("A39", justificativa)
+                                escrever_excel("A43", resultados)
 
                                 escrever_excel("C65", plano_gestao)
                                 escrever_excel("C66", objetivo_estrategico)
@@ -805,7 +836,6 @@ if arquivo_pdf:
                 else:
                     st.success("🔥 Documentos gerados e empacotados com Sucesso Absoluto!")
                     
-                    # === NOVO AVISO VISUAL DOS ESTUDANTES IGNORADOS ===
                     if estudantes_ignorados_log:
                         st.info(f"🎓 **Filtro Automático:** O sistema bloqueou propositalmente a geração de documentos individuais (Carga Horária) para **{len(estudantes_ignorados_log)} estudante(s)/bolsista(s)**: {', '.join(estudantes_ignorados_log)}.")
                     
