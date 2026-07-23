@@ -809,17 +809,11 @@ if arquivo_pdf:
 
                                 equipe_excel = [p for p in equipe_final if p.get("Função", "") != "Fiscal" and str(p.get("Nome", "")).strip() != ""]
                                 for idx, p in enumerate(equipe_excel):
-                                    linha = 95 + idx
-                                    escrever_excel(f"A{linha}", p.get("Nome", ""))
-                                    escrever_excel(f"C{linha}", p.get("SIAPE", ""))
-                                    escrever_excel(f"D{linha}", p.get("Vínculo", ""))
-                                    escrever_excel(f"E{linha}", p.get("Lotação", ""))
-                                    escrever_excel(f"F{linha}", p.get("Função", ""))
-                                    escrever_excel(f"G{linha}", p.get("Bolsa", ""))
-                                    escrever_excel(f"I{linha}", p.get("CH_D", ""))
-                                    escrever_excel(f"J{linha}", p.get("CH_F", ""))
-                                    escrever_excel(f"K{linha}", p.get("Início", ""))
-                                    escrever_excel(f"L{linha}", p.get("Término", ""))
+                                    linha = 96 + idx
+                                    if linha > 137:
+                                        break
+                                    escrever_excel(f"C{linha}", p.get("Nome", ""))
+                                    escrever_excel(f"F{linha}", p.get("SIAPE", ""))
 
                                 for idx, r_reg in enumerate(regioes_final):
                                     l_r = 142 + idx
