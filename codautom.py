@@ -762,7 +762,6 @@ if arquivo_pdf:
 
                             else:
                                 escrever_excel("C25", tit_proj)
-                                if dados_extraidos.get("data_inicio_proj", ""): escrever_excel("B18", dados_extraidos.get("data_inicio_proj", ""))
                                 escrever_excel("C27", data_termino_edit)
                                 escrever_excel("C28", c_g_n)
                                 escrever_excel("C29", c_g_s)
