@@ -488,29 +488,9 @@ if arquivo_pdf:
                 })
 
     st.markdown("---")
-    st.subheader("🔬 Laboratórios Utilizados")
-    num_labs = st.number_input("Quantos laboratórios serão utilizados neste projeto?", min_value=0, max_value=10, value=0)
-
-    laboratorios = []
-    if num_labs > 0:
-        for i in range(num_labs):
-            with st.container():
-                c_lab1, c_lab2, c_lab3, c_lab4 = st.columns(4)
-                n_lab = c_lab1.text_input(f"Nome do Lab {i+1}", key=f"lab_nome_{i}")
-                u_lab = c_lab2.text_input(f"Unidade (Centro) {i+1}", key=f"lab_unidade_{i}")
-                n_resp = c_lab3.text_input(f"Responsável {i+1}", key=f"lab_resp_{i}")
-                s_resp = c_lab4.text_input(f"SIAPE Responsável {i+1}", key=f"lab_siape_{i}")
-                laboratorios.append({
-                    "nome_lab": n_lab,
-                    "unidade_lab": u_lab,
-                    "nome_resp_lab": n_resp,
-                    "siape_resp_lab": s_resp
-                })
-
-    st.markdown("---")
     st.write("### 📊 Tabelas Estruturadas Consolidadas")
 
-    t1, t2, t3, t4 = st.tabs(["👥 Equipe", "🏛️ Unidades Vinculadas", "📍 Regiões de Atuação", "🗂️ Classificações"])
+    t1 = st.tabs(["👥 Equipe"])[0]
 
     with t1:
         st.warning("⚠️ **AVISO IMPORTANTE:** Preencha as colunas **'Chefia Imediata'** e **'SIAPE Chefia'** para cada participante clicando duas vezes no espaço vazio. Isso é obrigatório para as declarações de Carga Horária.")
@@ -523,24 +503,6 @@ if arquivo_pdf:
         df_equipe_edit = st.data_editor(df_equipe, num_rows="dynamic", key="ed_equipe", use_container_width=True)
         equipe_final = df_equipe_edit.fillna("").to_dict(orient="records")
 
-    with t2:
-        st.info("💡 **DICA:** Caso queira corrigir algum dado, **clique duas vezes** na célula.")
-        df_unidades = pd.DataFrame(dados_extraidos["unidades_raw"]).fillna("")
-        df_unidades_edit = st.data_editor(df_unidades, num_rows="dynamic", key="ed_unidades", use_container_width=True)
-        unidades_final = df_unidades_edit.fillna("").to_dict(orient="records")
-
-    with t3:
-        st.info("💡 **DICA:** Caso queira corrigir algum dado, **clique duas vezes** na célula.")
-        df_regioes = pd.DataFrame(dados_extraidos["regioes_raw"]).fillna("")
-        df_regioes_edit = st.data_editor(df_regioes, num_rows="dynamic", key="ed_regioes", use_container_width=True)
-        regioes_final = df_regioes_edit.fillna("").to_dict(orient="records")
-
-    with t4:
-        st.info("💡 **DICA:** Caso queira corrigir algum dado, **clique duas vezes** na célula.")
-        df_classif = pd.DataFrame(dados_extraidos["classificacoes_raw"]).fillna("")
-        df_classif_edit = st.data_editor(df_classif, num_rows="dynamic", key="ed_classif", use_container_width=True)
-        classificacoes_final = df_classif_edit.fillna("").to_dict(orient="records")
-
     st.markdown("---")
     st.markdown("### 4️⃣ Passo 4: Geração de Documentos")
     st.write("Ao clicar no botão abaixo, o sistema irá preencher todos os documentos na nuvem e preparar um arquivo .ZIP para você baixar.")
@@ -550,16 +512,19 @@ if arquivo_pdf:
             logs = []
             estudantes_ignorados_log = []
 
-            # LÓGICA DAS MÚLTIPLAS EMPRESAS (PARA O WORD)
+            # ==========================================================================
+            # 🎯 LÓGICA DAS MÚLTIPLAS EMPRESAS (PARA O WORD)
+            # ==========================================================================
             nomes_empresas = [e["nome"] for e in empresas_lista if e["nome"]]
             if len(nomes_empresas) == 0:
                 texto_empresas = ""
             elif len(nomes_empresas) == 1:
-                texto_empresas = nomes_empresas[0]
+                texto_empresas = f" e a {nomes_empresas[0]}"
             elif len(nomes_empresas) == 2:
-                texto_empresas = " e ".join(nomes_empresas)
+                texto_empresas = f", {nomes_empresas[0]} e a {nomes_empresas[1]}"
             else:
-                texto_empresas = ", ".join(nomes_empresas[:-1]) + " e " + nomes_empresas[-1]
+                texto_empresas = ", " + ", ".join(nomes_empresas[:-1]) + f" e a {nomes_empresas[-1]}"
+            # ==========================================================================
 
             base_instr = "Acordo de Cooperação Técnica"
             if tipo_processo == "Acordo de Parceria (AP)":
@@ -568,7 +533,7 @@ if arquivo_pdf:
                 base_instr = "Contrato"
 
             sufixo_classificacao = dados_extraidos.get("classificacao", "").strip()
-            for c in classificacoes_final:
+            for c in dados_extraidos["classificacoes_raw"]:
                 if "caracterização das ações de extensão" in str(c.get("Tipo de Classificação", "")).lower():
                     val = str(c.get("Classificação", ""))
                     m_suf = re.search(r'[\d\.]+\s*-\s*(.*)', val)
@@ -601,8 +566,6 @@ if arquivo_pdf:
                 "siape_adm": siape_coord_adm, "siapeadm": siape_coord_adm,
                 "membros": equipe_final, "objetivos": objetivos, "metas": metas,
                 "justificativa": justificativa, "resultados": resultados,
-                "unidades": unidades_final, "regioes": regioes_final,
-                "classificacoes": classificacoes_final,
                 "importancia_projeto": importancia, "importanciaprojeto": importancia,
                 "justificativa_fund": justificativa_fund, "justificativafund": justificativa_fund,
                 "diretor_unidade": diretor_unidade, "diretorunidade": diretor_unidade,
@@ -618,7 +581,6 @@ if arquivo_pdf:
 
                 arquivos_na_pasta = [f for f in os.listdir(pasta_alvo) if not f.startswith("~$")]
                 keywords_individuais = ["ch_dentro", "ch_fora", "conflito", "participante", "membro"]
-                keywords_lab = ["lab", "laboratório", "laboratorio"]
 
                 zip_buffer = io.BytesIO()
                 with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
@@ -628,7 +590,6 @@ if arquivo_pdf:
                             caminho_arquivo = os.path.join(pasta_alvo, arquivo)
                             nome_minusculo = arquivo.lower()
                             is_individual = any(kw in nome_minusculo for kw in keywords_individuais)
-                            is_lab = any(kw in nome_minusculo for kw in keywords_lab)
 
                             if is_individual:
                                 for membro in equipe_final:
@@ -687,28 +648,6 @@ if arquivo_pdf:
                                     except Exception as e:
                                         logs.append(f"Erro em {arquivo} para {membro.get('Nome')}: {str(e)}")
 
-                            elif is_lab:
-                                if num_labs > 0:
-                                    for lab in laboratorios:
-                                        if not lab.get("nome_lab") or str(lab.get("nome_lab")).strip() == "": continue
-                                        nome_lab_limpo = re.sub(r'[^\w]', '_', str(lab.get("nome_lab")))[:40].strip('_')
-                                        nome_doc_sem_ext = arquivo.replace(".docx", "")
-
-                                        try:
-                                            doc_lab = DocxTemplate(caminho_arquivo)
-                                            ctx_lab = ctx_global.copy()
-                                            ctx_lab.update(lab)
-                                            ctx_lab["nomelab"] = lab.get("nome_lab")
-                                            ctx_lab["nomeresplab"] = lab.get("nome_resp_lab")
-                                            ctx_lab["siaperesplab"] = lab.get("siape_resp_lab")
-
-                                            doc_lab.render(ctx_lab)
-                                            doc_buffer = io.BytesIO()
-                                            doc_lab.save(doc_buffer)
-                                            zip_file.writestr(f"03_Documentos_Laboratorios/{nome_lab_limpo}_{nome_doc_sem_ext}.docx", doc_buffer.getvalue())
-                                        except Exception as e:
-                                            logs.append(f"Erro em {arquivo} para {lab.get('nome_lab')}: {str(e)}")
-
                             else:
                                 try:
                                     doc = DocxTemplate(caminho_arquivo)
@@ -743,45 +682,47 @@ if arquivo_pdf:
                                     logs.append(f"Aviso na célula {celula}: {str(err)}")
 
                             if tipo_processo == "Acordo de Cooperação Técnica (ACT)":
-                                escrever_excel("C17", tit_proj)
-                                escrever_excel("C19", data_termino_edit)
-                                escrever_excel("C20", c_g_n)
-                                escrever_excel("C21", c_g_s)
-                                escrever_excel("C22", f_nome)
-                                escrever_excel("C23", f_siape)
-                                escrever_excel("C24", nome_coord_adm)
-                                escrever_excel("C25", siape_coord_adm)
-                                escrever_excel("C26", n_proj)
-                                escrever_excel("C27", dados_extraidos.get("classificacao", ""))
-                                escrever_excel("C28", texto_instrumento_completo)
+                                escrever_excel("F30", tit_proj)
+                                if dados_extraidos.get("data_inicio_proj", ""): escrever_excel("C31", dados_extraidos.get("data_inicio_proj", ""))
+                                escrever_excel("F32", data_termino_edit)
+                                escrever_excel("F33", c_g_n)
+                                escrever_excel("F34", c_g_s)
+                                escrever_excel("F35", f_nome)
+                                escrever_excel("F36", f_siape)
+                                escrever_excel("F37", nome_coord_adm)
+                                escrever_excel("F38", siape_coord_adm)
+                                escrever_excel("F39", n_proj)
+                                escrever_excel("F40", dados_extraidos.get("classificacao", ""))
+                                escrever_excel("F41", texto_instrumento_completo)
 
-                                escrever_excel("A32", resumo)
-                                escrever_excel("A36", objetivos)
-                                escrever_excel("A40", justificativa)
-                                escrever_excel("A44", resultados)
+                                escrever_excel("A45", resumo)
+                                escrever_excel("A49", objetivos)
+                                escrever_excel("A53", justificativa)
+                                escrever_excel("A57", resultados)
 
                             else:
-                                escrever_excel("C25", tit_proj)
-                                escrever_excel("C27", data_termino_edit)
-                                escrever_excel("C28", c_g_n)
-                                escrever_excel("C29", c_g_s)
-                                escrever_excel("C30", f_nome)
-                                escrever_excel("C31", f_siape)
-                                escrever_excel("C32", nome_coord_adm)
-                                escrever_excel("C33", siape_coord_adm)
-                                escrever_excel("C34", n_proj)
-                                escrever_excel("C35", dados_extraidos.get("classificacao", ""))
-                                escrever_excel("C36", texto_instrumento_completo)
+                                escrever_excel("C30", tit_proj)
+                                if dados_extraidos.get("data_inicio_proj", ""): escrever_excel("B31", dados_extraidos.get("data_inicio_proj", ""))
+                                escrever_excel("C32", data_termino_edit)
+                                escrever_excel("C33", c_g_n)
+                                escrever_excel("C34", c_g_s)
+                                escrever_excel("C35", f_nome)
+                                escrever_excel("C36", f_siape)
+                                escrever_excel("C37", nome_coord_adm)
+                                escrever_excel("C38", siape_coord_adm)
+                                escrever_excel("C39", n_proj)
+                                escrever_excel("C40", dados_extraidos.get("classificacao", ""))
+                                escrever_excel("C41", texto_instrumento_completo)
                                 
-                                escrever_excel("A40", resumo)
-                                escrever_excel("A44", objetivos)
-                                escrever_excel("A48", justificativa)
-                                escrever_excel("A52", resultados)
+                                escrever_excel("A45", resumo)
+                                escrever_excel("A49", objetivos)
+                                escrever_excel("A53", justificativa)
+                                escrever_excel("A57", resultados)
 
                                 equipe_excel = [p for p in equipe_final if p.get("Função", "") != "Fiscal" and str(p.get("Nome", "")).strip() != ""]
                                 for idx, p in enumerate(equipe_excel):
-                                    linha = 104 + idx
-                                    if linha > 145:
+                                    linha = 96 + idx
+                                    if linha > 137:
                                         break
                                     escrever_excel(f"C{linha}", p.get("Nome", ""))
                                     escrever_excel(f"F{linha}", p.get("SIAPE", ""))
