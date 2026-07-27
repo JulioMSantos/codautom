@@ -744,7 +744,6 @@ if arquivo_pdf:
 
                             if tipo_processo == "Acordo de Cooperação Técnica (ACT)":
                                 escrever_excel("F17", tit_proj)
-                                if dados_extraidos.get("data_inicio_proj", ""): escrever_excel("C18", dados_extraidos.get("data_inicio_proj", ""))
                                 escrever_excel("F19", data_termino_edit)
                                 escrever_excel("F20", c_g_n)
                                 escrever_excel("F21", c_g_s)
