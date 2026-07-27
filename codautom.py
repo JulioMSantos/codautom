@@ -40,7 +40,6 @@ def limpar_texto_bloco(txt):
 def identificar_instrumento_juridico(texto):
     texto = texto or ""
 
-    # Tenta ler o campo explícito do relatório
     m_instr = re.search(r'Instrumento jurídico celebrado\s*:\s*(.*?)(?:\n|$)', texto, re.IGNORECASE)
     if m_instr:
         valor = m_instr.group(1).strip().lower()
@@ -123,7 +122,6 @@ if arquivo_pdf:
         texto_limpo = re.sub(r'UNIVERSIDADE FEDERAL DE SANTA MARIA - UFSM', '', texto_limpo, flags=re.IGNORECASE)
         texto_limpo = re.sub(r'PROJETO NA ÍNTEGRA', '', texto_limpo, flags=re.IGNORECASE)
 
-        # 🧹 O APAGADOR MÁGICO
         lixos_para_apagar = [
             r'(?i)PARTICIPANTE\s+V[ÍI]NCULO\s+CURSO/LOTA[ÇC][ÃA]O\s+FUN[ÇC][ÃA]O\s*\$\$\$',
             r'(?i)PARTICIPANTE\s+V[ÍI]NCULO\s+CURSO/LOTA[ÇC][ÃA]O\s+FUN[ÇC][ÃA]O',
@@ -212,9 +210,6 @@ if arquivo_pdf:
                 if len(line) > 5:
                     dados_extraidos["classificacoes_raw"].append({"Tipo de Classificação": line, "Classificação": ""})
 
-        # ==============================================================================
-        # EXTRAÇÃO DE PARTICIPANTES
-        # ==============================================================================
         bloco_participantes = extrair_bloco(r'PARTICIPANTES', [r'UNIDADES VINCULADAS\s*\n', r'CLASSIFICAÇÕES', r'REGIÕES DE ATUAÇÃO'])
         if not bloco_participantes:
             bloco_participantes = texto_limpo
@@ -242,7 +237,6 @@ if arquivo_pdf:
 
             nome = nome_limpo[:corte_idx].strip(" -/")
             
-            # FILTRO ATIVO: Se não sobrou nome, pula a linha (evita falso positivo com Lupa Data ou CNPJ)
             if not nome or len(nome) < 2:
                 continue
 
@@ -256,7 +250,6 @@ if arquivo_pdf:
 
             m_info = re.search(r'(Coordenador Administrativo|Coordenador|Estagiário|Colaborador|Fiscal|Participante|Membro|Pesquisador|Responsável Técnico|Responsável|Técnico|Bolsista)\s+(Sim|Não|Nao)[\s\S]*?(\d+)\s+(\d+)\s+(\d{2}/\d{2}/\d{4})\s+(\d{2}/\d{2}/\d{4})', janela_limpa, re.IGNORECASE)
 
-            # LISTA REGEX PARA VÍNCULOS
             prefixos_ufsm_regex = [
                 r"Estudante de Pós-\s*graduação", r"Estudante de Pós-Graduação", r"Estudante de Graduação", r"Estudante de graduação",
                 r"Estudante de Ensino Médio", r"Técnico[- ]Administrativo em Educação", r"Técnico[- ]Administrativo", r"Tecnico Administrativo",
@@ -390,9 +383,6 @@ if arquivo_pdf:
 if arquivo_pdf:
     st.markdown("---")
 
-    # ==============================================================================
-    # PASSO 2: VALIDAÇÃO DA FUNDAÇÃO
-    # ==============================================================================
     st.markdown("### 2️⃣ Passo 2: Validação da Fundação")
 
     tipo_sugerido = dados_extraidos.get("tipo_processo_sugerido", "Acordo de Cooperação Técnica (ACT)")
@@ -432,10 +422,6 @@ if arquivo_pdf:
             ctx_fundacao = fundacoes_dados[fund_sigla]
 
     st.markdown("---")
-
-    # ==============================================================================
-    # PASSO 3: EDIÇÃO DE DADOS E TABELAS
-    # ==============================================================================
     st.markdown("### 3️⃣ Passo 3: Conferência e Edição de Dados")
 
     with st.expander("📝 Detalhes do Projeto e Textos Longos", expanded=True):
@@ -444,14 +430,11 @@ if arquivo_pdf:
         with c1:
             tit_proj = st.text_input("Nome do Projeto (Título)", value=dados_extraidos.get("titulo", ""))
             n_proj = st.text_input("Número do Registro GAP", value=dados_extraidos.get("numero", ""))
-            empresa_input = st.text_input("Empresa / Parceira", value=dados_extraidos.get("empresa", ""))
             resumo = st.text_area("Resumo do Projeto", value=dados_extraidos.get("resumo", ""), height=120)
             objetivos = st.text_area("Objetivos do Projeto", value=dados_extraidos.get("objetivos", ""), height=120)
             justificativa = st.text_area("Justificativa do Projeto", value=dados_extraidos.get("justificativa_proj", ""), height=120)
             importancia = st.text_area("Importância do Projeto", value=dados_extraidos.get("importancia_projeto", ""), height=80)
             justificativa_fund = st.text_area("Justificativa para escolha da Fundação", placeholder="Digite o motivo da escolha da fundação...", height=80)
-            plano_gestao = st.text_area("Plano de Gestão", value=dados_extraidos.get("plano_gestao", ""), height=80)
-            inovacao_bool = st.text_input("Possui Inovação? (Sim/Não)", value=dados_extraidos.get("inovacao_bool", ""))
         with c2:
             diretor_unidade = st.text_input("Diretor da Unidade")
             siape_diretor = st.text_input("SIAPE do Diretor")
@@ -459,8 +442,6 @@ if arquivo_pdf:
             data_termino_edit = st.text_input("Data de Término", value=dados_extraidos.get("data_termino_proj", ""))
             resultados = st.text_area("Resultados Esperados", value=dados_extraidos.get("resultados", ""), height=120)
             metas = st.text_area("Metas do Projeto (Opcional)", placeholder="Digite as metas do projeto...", height=120)
-            objetivo_estrategico = st.text_area("Objetivo Estratégico", value=dados_extraidos.get("objetivo_estrategico", ""), height=80)
-            inovacao_potencial = st.text_area("Potencial de Inovação", value=dados_extraidos.get("inovacao_potencial", ""), height=80)
 
     st.markdown("---")
     st.subheader("👨‍🏫 Coordenador e Fiscal do Projeto")
@@ -474,6 +455,37 @@ if arquivo_pdf:
     col_adm1, col_adm2 = st.columns(2)
     nome_coord_adm = col_adm1.text_input("Coordenador Administrativo")
     siape_coord_adm = col_adm2.text_input("SIAPE Coord. Adm.")
+
+    st.markdown("---")
+    st.subheader("🏢 Empresas / Parceiras")
+    num_empresas = st.number_input("Quantas empresas/instituições parceiras participam deste projeto?", min_value=1, max_value=10, value=1)
+
+    empresas_lista = []
+    for i in range(num_empresas):
+        with st.container():
+            st.markdown(f"**Empresa {i+1}**")
+            c_emp1, c_emp2 = st.columns(2)
+            
+            val_nome = dados_extraidos.get("empresa", "") if i == 0 else ""
+            
+            nome_emp = c_emp1.text_input(f"Nome da Empresa {i+1}", value=val_nome, key=f"emp_nome_{i}")
+            cnpj_emp = c_emp2.text_input(f"CNPJ {i+1}", key=f"emp_cnpj_{i}")
+
+            c_emp3, c_emp4, c_emp5, c_emp6 = st.columns([3, 2, 1, 1])
+            end_emp = c_emp3.text_input(f"Endereço {i+1}", key=f"emp_end_{i}")
+            cid_emp = c_emp4.text_input(f"Cidade {i+1}", key=f"emp_cid_{i}")
+            uf_emp = c_emp5.text_input(f"UF {i+1}", key=f"emp_uf_{i}")
+            cep_emp = c_emp6.text_input(f"CEP {i+1}", key=f"emp_cep_{i}")
+
+            if nome_emp:
+                empresas_lista.append({
+                    "nome": nome_emp,
+                    "cnpj": cnpj_emp,
+                    "endereco": end_emp,
+                    "cidade": cid_emp,
+                    "uf": uf_emp,
+                    "cep": cep_emp
+                })
 
     st.markdown("---")
     st.subheader("🔬 Laboratórios Utilizados")
@@ -529,9 +541,6 @@ if arquivo_pdf:
         df_classif_edit = st.data_editor(df_classif, num_rows="dynamic", key="ed_classif", use_container_width=True)
         classificacoes_final = df_classif_edit.fillna("").to_dict(orient="records")
 
-    # ==============================================================================
-    # PASSO 4: GERAÇÃO DE DOCUMENTOS (NUVEM / ZIP)
-    # ==============================================================================
     st.markdown("---")
     st.markdown("### 4️⃣ Passo 4: Geração de Documentos")
     st.write("Ao clicar no botão abaixo, o sistema irá preencher todos os documentos na nuvem e preparar um arquivo .ZIP para você baixar.")
@@ -541,19 +550,24 @@ if arquivo_pdf:
             logs = []
             estudantes_ignorados_log = []
 
-            # ==========================================================================
-            # 🎯 LÓGICA DO NOME DO INSTRUMENTO JURÍDICO COMPLETO (EXCEL)
-            # ==========================================================================
+            # LÓGICA DAS MÚLTIPLAS EMPRESAS (PARA O WORD)
+            nomes_empresas = [e["nome"] for e in empresas_lista if e["nome"]]
+            if len(nomes_empresas) == 0:
+                texto_empresas = ""
+            elif len(nomes_empresas) == 1:
+                texto_empresas = nomes_empresas[0]
+            elif len(nomes_empresas) == 2:
+                texto_empresas = " e ".join(nomes_empresas)
+            else:
+                texto_empresas = ", ".join(nomes_empresas[:-1]) + " e " + nomes_empresas[-1]
+
             base_instr = "Acordo de Cooperação Técnica"
             if tipo_processo == "Acordo de Parceria (AP)":
                 base_instr = "Acordo de Parceria"
             elif tipo_processo == "Contrato Global (CG)":
                 base_instr = "Contrato"
 
-            # Puxa o sufixo da classificação principal (Ex: "Pesquisa", "Extensão")
             sufixo_classificacao = dados_extraidos.get("classificacao", "").strip()
-            
-            # Se for extensão, procura o termo específico e remove a numeração da frente
             for c in classificacoes_final:
                 if "caracterização das ações de extensão" in str(c.get("Tipo de Classificação", "")).lower():
                     val = str(c.get("Classificação", ""))
@@ -565,7 +579,6 @@ if arquivo_pdf:
                     break
             
             texto_instrumento_completo = f"{base_instr} com {sufixo_classificacao}" if sufixo_classificacao else base_instr
-            # ==========================================================================
 
             if tipo_processo == "Contrato Global (CG)": pasta_alvo = f"Modelos/AG/{fund_sigla}" if status_fund == "Já definida" else "Modelos/AG/SEM"
             elif tipo_processo == "Acordo de Parceria (AP)": pasta_alvo = f"Modelos/AP/{fund_sigla}" if status_fund == "Já definida" else "Modelos/AP/SEM"
@@ -577,7 +590,8 @@ if arquivo_pdf:
                 "titulo_projeto": tit_proj, "tituloprojeto": tit_proj,
                 "n_projeto": n_proj, "nprojeto": n_proj,
                 "classificacao": dados_extraidos["classificacao"],
-                "instrumento_completo": texto_instrumento_completo, # Disponível também para o Word, se precisar no futuro
+                "instrumento_completo": texto_instrumento_completo,
+                "texto_empresas": texto_empresas,
                 "nome_coord": c_g_n, "nomecoord": c_g_n,
                 "siape_coord": c_g_s, "siapecoord": c_g_s,
                 "nome_fiscal": f_nome, "nomefiscal": f_nome,
@@ -589,12 +603,10 @@ if arquivo_pdf:
                 "justificativa": justificativa, "resultados": resultados,
                 "unidades": unidades_final, "regioes": regioes_final,
                 "classificacoes": classificacoes_final,
-                "empresa": empresa_input, "importancia_projeto": importancia, "importanciaprojeto": importancia,
+                "importancia_projeto": importancia, "importanciaprojeto": importancia,
                 "justificativa_fund": justificativa_fund, "justificativafund": justificativa_fund,
                 "diretor_unidade": diretor_unidade, "diretorunidade": diretor_unidade,
-                "siape_diretor": siape_diretor, "siapediretor": siape_diretor,
-                "plano_gestao": plano_gestao, "planogestao": plano_gestao,
-                "objetivo_estrategico": objetivo_estrategico, "objetivoestrategico": objetivo_estrategico
+                "siape_diretor": siape_diretor, "siapediretor": siape_diretor
             }
             ctx_global.update(ctx_fundacao)
 
@@ -611,7 +623,6 @@ if arquivo_pdf:
                 zip_buffer = io.BytesIO()
                 with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
 
-                    # Processamento do Word (.docx)
                     for arquivo in arquivos_na_pasta:
                         if arquivo.endswith(".docx"):
                             caminho_arquivo = os.path.join(pasta_alvo, arquivo)
@@ -623,9 +634,6 @@ if arquivo_pdf:
                                 for membro in equipe_final:
                                     if not membro.get("Nome") or str(membro.get("Nome")).strip() == "": continue
                                     
-                                    # =========================================================
-                                    # 🛑 FILTRO CIRÚRGICO DE ESTUDANTES E BOLSISTAS 
-                                    # =========================================================
                                     vinculo_membro = str(membro.get("Vínculo", "")).lower()
                                     funcao_membro = str(membro.get("Função", "")).lower()
                                     
@@ -634,22 +642,15 @@ if arquivo_pdf:
                                             if membro.get("Nome") not in estudantes_ignorados_log:
                                                 estudantes_ignorados_log.append(str(membro.get("Nome")))
                                         continue 
-                                    # =========================================================
 
-                                    # =========================================================
-                                    # 🛑 NOVO FILTRO: CARGA HORÁRIA ZERADA
-                                    # =========================================================
                                     ch_d_val = str(membro.get("CH_D", "0")).strip()
                                     ch_f_val = str(membro.get("CH_F", "0")).strip()
 
-                                    # Se for documento de CH Dentro e o valor estiver zerado, pula
                                     if "ch_dentro" in nome_minusculo and ch_d_val in ["0", "0.0", "0,0", "-", ""]:
                                         continue
                                         
-                                    # Se for documento de CH Fora e o valor estiver zerado, pula
                                     if "ch_fora" in nome_minusculo and ch_f_val in ["0", "0.0", "0,0", "-", ""]:
                                         continue
-                                    # =========================================================
 
                                     nome_limpo = re.sub(r'[^\w]', '_', str(membro.get("Nome")))[:40].strip('_')
                                     nome_doc_sem_ext = arquivo.replace(".docx", "")
@@ -718,9 +719,7 @@ if arquivo_pdf:
                                 except Exception as e:
                                     logs.append(f"Erro ao processar arquivo geral {arquivo}: {str(e)}")
 
-                    # Processamento do Excel (.xlsx)
-                    arq_excel = next((f for f in arquivos_na_pasta if f.endswith(".xlsx")), None)
-                    if arq_excel:
+                    if arq_excel := next((f for f in arquivos_na_pasta if f.endswith(".xlsx")), None):
                         try:
                             caminho_excel = os.path.join(pasta_alvo, arq_excel)
                             wb = openpyxl.load_workbook(caminho_excel)
@@ -731,11 +730,9 @@ if arquivo_pdf:
                                 if val_str in ["", "-", "None", "Não se aplica"]: val_str = None
                                 try:
                                     r_row, r_col = coordinate_to_tuple(celula)
-                                    mesclado = False
                                     for merged_range in list(ws.merged_cells.ranges):
                                         min_col, min_row, max_col, max_row = merged_range.bounds
                                         if min_col <= r_col <= max_col and min_row <= r_row <= max_row:
-                                            mesclado = True
                                             intervalo = str(merged_range)
                                             ws.unmerge_cells(intervalo)
                                             ws.cell(row=min_row, column=min_col).value = val_str
@@ -757,8 +754,6 @@ if arquivo_pdf:
                                 escrever_excel("F25", siape_coord_adm)
                                 escrever_excel("F26", n_proj)
                                 escrever_excel("F27", dados_extraidos.get("classificacao", ""))
-                                
-                                # AQUI INSERE O NOVO INSTRUMENTO JURÍDICO COMPLETO
                                 escrever_excel("F28", texto_instrumento_completo)
 
                                 escrever_excel("A32", resumo)
@@ -778,34 +773,12 @@ if arquivo_pdf:
                                 escrever_excel("C25", siape_coord_adm)
                                 escrever_excel("C26", n_proj)
                                 escrever_excel("C27", dados_extraidos.get("classificacao", ""))
-                                
-                                # AQUI INSERE O NOVO INSTRUMENTO JURÍDICO COMPLETO
                                 escrever_excel("C28", texto_instrumento_completo)
-
+                                
                                 escrever_excel("A32", resumo)
                                 escrever_excel("A36", objetivos)
                                 escrever_excel("A40", justificativa)
                                 escrever_excel("A44", resultados)
-
-                                escrever_excel("C65", plano_gestao)
-                                escrever_excel("C66", objetivo_estrategico)
-                                escrever_excel("G70", inovacao_bool)
-                                escrever_excel("D71", inovacao_potencial)
-
-                                for idx, c in enumerate(classificacoes_final):
-                                    l_c = 49 + idx
-                                    if l_c > 63: break
-                                    escrever_excel(f"A{l_c}", c.get("Tipo de Classificação", ""))
-                                    escrever_excel(f"G{l_c}", c.get("Classificação", ""))
-
-                                for idx, u in enumerate(unidades_final):
-                                    l_u = 76 + idx
-                                    if l_u > 90: break
-                                    escrever_excel(f"A{l_u}", u.get("Unidade", ""))
-                                    escrever_excel(f"F{l_u}", u.get("Função", ""))
-                                    escrever_excel(f"I{l_u}", u.get("Valor", ""))
-                                    escrever_excel(f"K{l_u}", u.get("Início", ""))
-                                    escrever_excel(f"L{l_u}", u.get("Término", ""))
 
                                 equipe_excel = [p for p in equipe_final if p.get("Função", "") != "Fiscal" and str(p.get("Nome", "")).strip() != ""]
                                 for idx, p in enumerate(equipe_excel):
@@ -814,24 +787,6 @@ if arquivo_pdf:
                                         break
                                     escrever_excel(f"C{linha}", p.get("Nome", ""))
                                     escrever_excel(f"F{linha}", p.get("SIAPE", ""))
-
-                                for idx, r_reg in enumerate(regioes_final):
-                                    l_r = 142 + idx
-                                    if l_r > 184: break
-                                    escrever_excel(f"A{l_r}", r_reg.get("Cidade", ""))
-                                    escrever_excel(f"E{l_r}", r_reg.get("UF", ""))
-                                    escrever_excel(f"G{l_r}", r_reg.get("País", ""))
-                                    escrever_excel(f"I{l_r}", r_reg.get("Início", ""))
-                                    escrever_excel(f"K{l_r}", r_reg.get("Término", ""))
-
-                                for idx, lab in enumerate(laboratorios):
-                                    l_lab = 189 + idx
-                                    if l_lab > 203: break
-                                    if not lab.get("nome_lab") or str(lab.get("nome_lab")).strip() == "": continue
-                                    escrever_excel(f"A{l_lab}", lab.get("nome_lab", ""))
-                                    escrever_excel(f"F{l_lab}", lab.get("unidade_lab", ""))
-                                    escrever_excel(f"I{l_lab}", lab.get("nome_resp_lab", ""))
-                                    escrever_excel(f"L{l_lab}", lab.get("siape_resp_lab", ""))
 
                             excel_buffer = io.BytesIO()
                             wb.save(excel_buffer)
@@ -862,8 +817,5 @@ if arquivo_pdf:
             type="primary"
         )
 
-# ==============================================================================
-# ASSINATURA E CRÉDITOS DO DESENVOLVEDOR
-# ==============================================================================
 st.markdown("<br><hr>", unsafe_allow_html=True)
 st.markdown("<div style='text-align: center; color: #888888; padding: 10px; font-size: 14px;'>⚡ <b>Raichu Pro</b> | Desenvolvido por Julio Maia 👨‍💻</div>", unsafe_allow_html=True)
