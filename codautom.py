@@ -781,8 +781,8 @@ if arquivo_pdf:
 
                                 equipe_excel = [p for p in equipe_final if p.get("Função", "") != "Fiscal" and str(p.get("Nome", "")).strip() != ""]
                                 for idx, p in enumerate(equipe_excel):
-                                    linha = 96 + idx
-                                    if linha > 137:
+                                    linha = 104 + idx
+                                    if linha > 145:
                                         break
                                     escrever_excel(f"C{linha}", p.get("Nome", ""))
                                     escrever_excel(f"F{linha}", p.get("SIAPE", ""))
