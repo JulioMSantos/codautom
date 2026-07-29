@@ -703,7 +703,6 @@ if arquivo_pdf:
                                 escrever_excel("C32", data_termino_edit)
                                 escrever_excel("C33", c_g_n)
                                 escrever_excel("C37", f_nome)
-                                escrever_excel("C39", nome_coord_adm)
                                 escrever_excel("C41", n_proj)
                                 escrever_excel("C42", texto_instrumento_completo)
                                 
