@@ -691,22 +691,16 @@ if arquivo_pdf:
                                 escrever_excel("A44", resultados)
 
                             else:
-                                escrever_excel("C25", tit_proj)
-                                escrever_excel("C27", data_termino_edit)
-                                escrever_excel("C28", c_g_n)
-                                escrever_excel("C29", c_g_s)
-                                escrever_excel("C30", nome_fiscal_excel)
-                                escrever_excel("C31", f_siape)
-                                escrever_excel("C32", nome_coord_adm_excel)
-                                escrever_excel("C33", siape_coord_adm)
-                                escrever_excel("C34", n_proj)
-                                escrever_excel("C35", dados_extraidos.get("classificacao", ""))
-                                escrever_excel("C36", instrumento_juridico_edit)
+                                escrever_excel("C28", tit_proj)
+                                escrever_excel("C33", c_g_n)
+                                escrever_excel("C37", nome_fiscal_excel)
+                                escrever_excel("C39", nome_coord_adm_excel)
+                                escrever_excel("C41", n_proj)
+                                escrever_excel("C42", instrumento_juridico_edit)
                                 
-                                escrever_excel("A40", resumo)
-                                escrever_excel("A44", objetivos)
-                                escrever_excel("A48", justificativa)
-                                escrever_excel("A52", resultados)
+                                escrever_excel("A46", objetivos)
+                                escrever_excel("A50", justificativa)
+                                escrever_excel("A55", resultados)
 
                                 equipe_excel = [p for p in equipe_final if p.get("Função", "") != "Fiscal" and str(p.get("Nome", "")).strip() != ""]
                                 for idx, p in enumerate(equipe_excel):
