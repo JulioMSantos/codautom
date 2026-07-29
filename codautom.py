@@ -669,8 +669,8 @@ if arquivo_pdf:
                                     logs.append(f"Aviso na célula {celula}: {str(err)}")
 
                             # Variáveis para preencher "(Não possui)" no Excel caso estejam vazias
-                            nome_fiscal_excel = f_nome if str(f_nome).strip() != "" else "(Não possui)"
-                            nome_coord_adm_excel = nome_coord_adm if str(nome_coord_adm).strip() != "" else "(Não possui)"
+                            nome_fiscal_excel = f_nome if str(f_nome).strip() != "" else "(Não preenchido)"
+                            nome_coord_adm_excel = nome_coord_adm if str(nome_coord_adm).strip() != "" else "(Não preenchido)"
 
                             if tipo_processo == "Acordo de Cooperação Técnica (ACT)":
                                 escrever_excel("C17", tit_proj)
