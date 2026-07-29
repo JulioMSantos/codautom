@@ -97,6 +97,7 @@ dados_extraidos = {
     "titulo": "", "numero": "", "empresa": "", "data_inicio_proj": "", "data_termino_proj": "",
     "resumo": "", "objetivos": "", "justificativa_proj": "", "resultados": "", "importancia_projeto": "",
     "plano_gestao": "", "objetivo_estrategico": "", "inovacao_bool": "", "inovacao_potencial": "",
+    "instrumento_juridico_pdf": "",
     "classificacoes_raw": [], "equipe_raw": [], "unidades_raw": [], "regioes_raw": [],
     "fundacao_sugerida": "FATEC", "tipo_processo_sugerido": "Acordo de Cooperação Técnica (ACT)"
 }
@@ -149,6 +150,7 @@ if arquivo_pdf:
         dados_extraidos["data_termino_proj"] = extrair(r'Término:\s*(\d{2}/\d{2}/\d{4})')
         dados_extraidos["classificacao"] = extrair(r'Classificação:\s*(.*?)\n')
         dados_extraidos["empresa"] = extrair(r'(?:Financiador[a]?|Empresa|Cooperante|Financiador):\s*(.*?)\n')
+        dados_extraidos["instrumento_juridico_pdf"] = extrair(r'Instrumento jurídico celebrado:\s*([^\n]+)')
 
         m_coord = re.search(r'Responsável pelo projeto:\s*(.*?)\s*\(\s*(\d+)\s*\)', texto_limpo, re.IGNORECASE)
         if m_coord: dados_extraidos["coord_geral_pdf"] = {"nome": m_coord.group(1).strip(), "siape": m_coord.group(2).strip()}
@@ -440,6 +442,10 @@ if arquivo_pdf:
             siape_diretor = st.text_input("SIAPE do Diretor")
             st.text_input("Classificação", value=dados_extraidos.get("classificacao", ""), disabled=True)
             data_termino_edit = st.text_input("Data de Término", value=dados_extraidos.get("data_termino_proj", ""))
+            
+            # --- CAIXA DE EDIÇÃO DO INSTRUMENTO JURÍDICO AQUI ---
+            instrumento_juridico_edit = st.text_input("Instrumento Jurídico (Excel)", value=dados_extraidos.get("instrumento_juridico_pdf", ""))
+            
             resultados = st.text_area("Resultados Esperados", value=dados_extraidos.get("resultados", ""), height=120)
             metas = st.text_area("Metas do Projeto (Opcional)", placeholder="Digite as metas do projeto...", height=120)
 
@@ -526,25 +532,6 @@ if arquivo_pdf:
                 texto_empresas = ", " + ", ".join(nomes_empresas[:-1]) + f" e a {nomes_empresas[-1]}"
             # ==========================================================================
 
-            base_instr = "Acordo de Cooperação Técnica"
-            if tipo_processo == "Acordo de Parceria (AP)":
-                base_instr = "Acordo de Parceria"
-            elif tipo_processo == "Contrato Global (CG)":
-                base_instr = "Contrato"
-
-            sufixo_classificacao = dados_extraidos.get("classificacao", "").strip()
-            for c in dados_extraidos["classificacoes_raw"]:
-                if "caracterização das ações de extensão" in str(c.get("Tipo de Classificação", "")).lower():
-                    val = str(c.get("Classificação", ""))
-                    m_suf = re.search(r'[\d\.]+\s*-\s*(.*)', val)
-                    if m_suf:
-                        sufixo_classificacao = m_suf.group(1).strip()
-                    else:
-                        sufixo_classificacao = val.strip()
-                    break
-            
-            texto_instrumento_completo = f"{base_instr} com {sufixo_classificacao}" if sufixo_classificacao else base_instr
-
             if tipo_processo == "Contrato Global (CG)": pasta_alvo = f"Modelos/AG/{fund_sigla}" if status_fund == "Já definida" else "Modelos/AG/SEM"
             elif tipo_processo == "Acordo de Parceria (AP)": pasta_alvo = f"Modelos/AP/{fund_sigla}" if status_fund == "Já definida" else "Modelos/AP/SEM"
             else: pasta_alvo = "Modelos/ACT"
@@ -555,7 +542,7 @@ if arquivo_pdf:
                 "titulo_projeto": tit_proj, "tituloprojeto": tit_proj,
                 "n_projeto": n_proj, "nprojeto": n_proj,
                 "classificacao": dados_extraidos["classificacao"],
-                "instrumento_completo": texto_instrumento_completo,
+                "instrumento_completo": instrumento_juridico_edit,
                 "texto_empresas": texto_empresas,
                 "nome_coord": c_g_n, "nomecoord": c_g_n,
                 "siape_coord": c_g_s, "siapecoord": c_g_s,
@@ -682,8 +669,8 @@ if arquivo_pdf:
                                     logs.append(f"Aviso na célula {celula}: {str(err)}")
 
                             # Variáveis para preencher "(Não possui)" no Excel caso estejam vazias
-                            nome_fiscal_excel = f_nome if str(f_nome).strip() != "" else "(Não preenchido)"
-                            nome_coord_adm_excel = nome_coord_adm if str(nome_coord_adm).strip() != "" else "(Não preenchido)"
+                            nome_fiscal_excel = f_nome if str(f_nome).strip() != "" else "(Não possui)"
+                            nome_coord_adm_excel = nome_coord_adm if str(nome_coord_adm).strip() != "" else "(Não possui)"
 
                             if tipo_processo == "Acordo de Cooperação Técnica (ACT)":
                                 escrever_excel("C17", tit_proj)
@@ -696,7 +683,7 @@ if arquivo_pdf:
                                 escrever_excel("C25", siape_coord_adm)
                                 escrever_excel("C26", n_proj)
                                 escrever_excel("C27", dados_extraidos.get("classificacao", ""))
-                                escrever_excel("C28", texto_instrumento_completo)
+                                escrever_excel("C28", instrumento_juridico_edit)
 
                                 escrever_excel("A32", resumo)
                                 escrever_excel("A36", objetivos)
@@ -714,7 +701,7 @@ if arquivo_pdf:
                                 escrever_excel("C33", siape_coord_adm)
                                 escrever_excel("C34", n_proj)
                                 escrever_excel("C35", dados_extraidos.get("classificacao", ""))
-                                escrever_excel("C36", texto_instrumento_completo)
+                                escrever_excel("C36", instrumento_juridico_edit)
                                 
                                 escrever_excel("A40", resumo)
                                 escrever_excel("A44", objetivos)
