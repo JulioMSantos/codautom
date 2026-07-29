@@ -699,23 +699,22 @@ if arquivo_pdf:
                                 escrever_excel("A40", justificativa)
 
                             else:
-                                escrever_excel("C30", tit_proj)
-                                if dados_extraidos.get("data_inicio_proj", ""): escrever_excel("B31", dados_extraidos.get("data_inicio_proj", ""))
+                                escrever_excel("C29", tit_proj)
                                 escrever_excel("C32", data_termino_edit)
                                 escrever_excel("C33", c_g_n)
                                 escrever_excel("C34", c_g_s)
-                                escrever_excel("C35", f_nome)
-                                escrever_excel("C36", f_siape)
-                                escrever_excel("C37", nome_coord_adm)
-                                escrever_excel("C38", siape_coord_adm)
+                                escrever_excel("C37", f_nome)
+                                escrever_excel("C38", f_siape)
+                                escrever_excel("C39", nome_coord_adm)
+                                escrever_excel("C40", siape_coord_adm)
                                 escrever_excel("C39", n_proj)
-                                escrever_excel("C40", dados_extraidos.get("classificacao", ""))
-                                escrever_excel("C41", texto_instrumento_completo)
+                                escrever_excel("C41", dados_extraidos.get("classificacao", ""))
+                                escrever_excel("C42", texto_instrumento_completo)
                                 
-                                escrever_excel("A45", resumo)
-                                escrever_excel("A49", objetivos)
-                                escrever_excel("A53", justificativa)
-                                escrever_excel("A57", resultados)
+                                escrever_excel("A58", resumo)
+                                escrever_excel("A46", objetivos)
+                                escrever_excel("A50", justificativa)
+                                escrever_excel("A54", resultados)
 
                                 equipe_excel = [p for p in equipe_final if p.get("Função", "") != "Fiscal" and str(p.get("Nome", "")).strip() != ""]
                                 for idx, p in enumerate(equipe_excel):
