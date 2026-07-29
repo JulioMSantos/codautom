@@ -681,14 +681,18 @@ if arquivo_pdf:
                                 except Exception as err:
                                     logs.append(f"Aviso na célula {celula}: {str(err)}")
 
+                            # Variáveis para preencher "(Não possui)" no Excel caso estejam vazias
+                            nome_fiscal_excel = f_nome if str(f_nome).strip() != "" else "(Não possui)"
+                            nome_coord_adm_excel = nome_coord_adm if str(nome_coord_adm).strip() != "" else "(Não possui)"
+
                             if tipo_processo == "Acordo de Cooperação Técnica (ACT)":
                                 escrever_excel("C17", tit_proj)
                                 escrever_excel("C19", data_termino_edit)
                                 escrever_excel("C20", c_g_n)
                                 escrever_excel("C21", c_g_s)
-                                escrever_excel("C22", f_nome)
+                                escrever_excel("C22", nome_fiscal_excel)
                                 escrever_excel("C23", f_siape)
-                                escrever_excel("C24", nome_coord_adm)
+                                escrever_excel("C24", nome_coord_adm_excel)
                                 escrever_excel("C25", siape_coord_adm)
                                 escrever_excel("C26", n_proj)
                                 escrever_excel("C27", dados_extraidos.get("classificacao", ""))
@@ -697,23 +701,30 @@ if arquivo_pdf:
                                 escrever_excel("A32", resumo)
                                 escrever_excel("A36", objetivos)
                                 escrever_excel("A40", justificativa)
+                                escrever_excel("A44", resultados)
 
                             else:
-                                escrever_excel("C28", tit_proj)
-                                escrever_excel("C32", data_termino_edit)
-                                escrever_excel("C33", c_g_n)
-                                escrever_excel("C37", f_nome)
-                                escrever_excel("C41", n_proj)
-                                escrever_excel("C42", texto_instrumento_completo)
+                                escrever_excel("C25", tit_proj)
+                                escrever_excel("C27", data_termino_edit)
+                                escrever_excel("C28", c_g_n)
+                                escrever_excel("C29", c_g_s)
+                                escrever_excel("C30", nome_fiscal_excel)
+                                escrever_excel("C31", f_siape)
+                                escrever_excel("C32", nome_coord_adm_excel)
+                                escrever_excel("C33", siape_coord_adm)
+                                escrever_excel("C34", n_proj)
+                                escrever_excel("C35", dados_extraidos.get("classificacao", ""))
+                                escrever_excel("C36", texto_instrumento_completo)
                                 
-                                escrever_excel("A46", objetivos)
-                                escrever_excel("A50", justificativa)
-                                escrever_excel("A54", resultados)
+                                escrever_excel("A40", resumo)
+                                escrever_excel("A44", objetivos)
+                                escrever_excel("A48", justificativa)
+                                escrever_excel("A52", resultados)
 
                                 equipe_excel = [p for p in equipe_final if p.get("Função", "") != "Fiscal" and str(p.get("Nome", "")).strip() != ""]
                                 for idx, p in enumerate(equipe_excel):
-                                    linha = 96 + idx
-                                    if linha > 137:
+                                    linha = 104 + idx
+                                    if linha > 145:
                                         break
                                     escrever_excel(f"C{linha}", p.get("Nome", ""))
                                     escrever_excel(f"F{linha}", p.get("SIAPE", ""))
