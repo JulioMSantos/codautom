@@ -700,7 +700,7 @@ if arquivo_pdf:
                                 
                                 escrever_excel("A46", objetivos)
                                 escrever_excel("A50", justificativa)
-                                escrever_excel("A55", resultados)
+                                escrever_excel("A54", resultados)
 
                                 equipe_excel = [p for p in equipe_final if p.get("Função", "") != "Fiscal" and str(p.get("Nome", "")).strip() != ""]
                                 for idx, p in enumerate(equipe_excel):
