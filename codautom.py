@@ -463,17 +463,24 @@ if arquivo_pdf:
 
     st.markdown("---")
     st.subheader("🏢 Empresas / Parceiras")
-    st.info("Digite manualmente na caixinha abaixo o nome da empresa, ou das empresas. Ex: a FAURGS, o Banco do Brasil")
+    st.info("Digite manualmente na caixinha abaixo o nome da empresa, ou das empresas. Ex: FAURGS, Petrobras, Banco do Brasil")
     num_empresas = st.number_input("Quantas empresas/instituições parceiras participam deste projeto?", min_value=1, max_value=10, value=1)
 
+    # 🛑 ESTA É A PARTE QUE OBRIGA O SISTEMA A LEMBRAR O QUE VOCÊ DIGITOU 🛑
+    nomes_empresas_validas = []
     for i in range(num_empresas):
-        key_emp = f"emp_nome_unica_{i}"
+        key_emp = f"empresa_nome_final_{i}"
         
-        # Garante que o input não seja reescrito pelo sistema acidentalmente!
         if key_emp not in st.session_state:
             st.session_state[key_emp] = dados_extraidos.get("empresa", "") if i == 0 else ""
             
-        st.text_input(f"Nome da Empresa {i+1}", key=key_emp)
+        nome_emp = st.text_input(f"Nome da Empresa {i+1}", key=key_emp)
+        
+        if nome_emp.strip():
+            nomes_empresas_validas.append(nome_emp.strip())
+
+    if len(nomes_empresas_validas) == 0:
+        st.warning("⚠️ ALERTA: Você não preencheu o nome de nenhuma empresa/parceira no campo '🏢 Empresas / Parceiras'. A chave no Word ficará vazia!")
 
     st.markdown("---")
     st.write("### 📊 Tabelas Estruturadas Consolidadas")
@@ -503,22 +510,14 @@ if arquivo_pdf:
             # ==========================================================================
             # 🎯 LÓGICA DAS MÚLTIPLAS EMPRESAS (PARA O WORD)
             # ==========================================================================
-            
-            # Puxa o nome direto da memória inviolável (Session State) para não dar falha!
-            nomes_empresas_validas = []
-            for i in range(num_empresas):
-                nome_salvo = st.session_state.get(f"emp_nome_unica_{i}", "").strip()
-                if nome_salvo:
-                    nomes_empresas_validas.append(nome_salvo)
-            
             if len(nomes_empresas_validas) == 0:
                 texto_empresas = ""
             elif len(nomes_empresas_validas) == 1:
-                texto_empresas = f" e {nomes_empresas_validas[0]}"
+                texto_empresas = f" e a {nomes_empresas_validas[0]}"
             elif len(nomes_empresas_validas) == 2:
-                texto_empresas = f", {nomes_empresas_validas[0]} e {nomes_empresas_validas[1]}"
+                texto_empresas = f", {nomes_empresas_validas[0]} e a {nomes_empresas_validas[1]}"
             else:
-                texto_empresas = ", " + ", ".join(nomes_empresas_validas[:-1]) + f" e {nomes_empresas_validas[-1]}"
+                texto_empresas = ", " + ", ".join(nomes_empresas_validas[:-1]) + f" e a {nomes_empresas_validas[-1]}"
             # ==========================================================================
 
             base_instr = "Acordo de Cooperação Técnica"
