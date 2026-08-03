@@ -149,7 +149,7 @@ if arquivo_pdf:
         dados_extraidos["data_inicio_proj"] = extrair(r'Início:\s*(\d{2}/\d{2}/\d{4})')
         dados_extraidos["data_termino_proj"] = extrair(r'Término:\s*(\d{2}/\d{2}/\d{4})')
         dados_extraidos["classificacao"] = extrair(r'Classificação:\s*(.*?)\n')
-        dados_extraidos["empresa"] = extrair(r'(?:Financiador[a]?|Empresa|Cooperante|Financiador):\s*(.*?)\n')
+        dados_extraidos["empresa"] = extrair(r'(?:Financiador[a]?|Empresa|Cooperante|Financiador|Instituição):\s*(.*?)\n')
         dados_extraidos["instrumento_juridico_pdf"] = extrair(r'Instrumento jurídico celebrado:\s*([^\n]+)')
 
         m_coord = re.search(r'Responsável pelo projeto:\s*(.*?)\s*\(\s*(\d+)\s*\)', texto_limpo, re.IGNORECASE)
@@ -463,15 +463,15 @@ if arquivo_pdf:
 
     st.markdown("---")
     st.subheader("🏢 Empresas / Parceiras")
+    st.info("Digite manualmente na caixinha abaixo o nome da empresa, ou das empresas. Ex: a FAURGS, o Banco do Brasil")
     num_empresas = st.number_input("Quantas empresas/instituições parceiras participam deste projeto?", min_value=1, max_value=10, value=1)
 
+    # 🛑 MUDEI A LÓGICA DE SALVAMENTO DAS EMPRESAS AQUI! 🛑
     empresas_lista = []
     for i in range(num_empresas):
         val_nome = dados_extraidos.get("empresa", "") if i == 0 else ""
         nome_emp = st.text_input(f"Nome da Empresa {i+1}", value=val_nome, key=f"emp_nome_{i}")
-
-        if nome_emp.strip():
-            empresas_lista.append({"nome": nome_emp.strip()})
+        empresas_lista.append(nome_emp) # Salva tudo, mesmo se estiver em branco, para processar no botão final.
 
     st.markdown("---")
     st.write("### 📊 Tabelas Estruturadas Consolidadas")
@@ -493,6 +493,11 @@ if arquivo_pdf:
     st.markdown("### 4️⃣ Passo 4: Geração de Documentos")
     st.write("Ao clicar no botão abaixo, o sistema irá preencher todos os documentos na nuvem e preparar um arquivo .ZIP para você baixar.")
 
+    # 🛑 O ALERTA ESTÁ AQUI PARA AVISAR SE A CAIXINHA ESTIVER VAZIA! 🛑
+    nomes_empresas_validas = [e.strip() for e in empresas_lista if e.strip()]
+    if len(nomes_empresas_validas) == 0:
+        st.warning("⚠️ ALERTA: Você não preencheu o nome de nenhuma empresa/parceira no campo '🏢 Empresas / Parceiras'. A chave no Word ficará vazia!")
+
     if st.button("🚀 Processar Documentos"):
         with st.spinner("⏳ Processando e gerando os documentos... Por favor, aguarde!"):
             logs = []
@@ -501,15 +506,14 @@ if arquivo_pdf:
             # ==========================================================================
             # 🎯 LÓGICA DAS MÚLTIPLAS EMPRESAS (PARA O WORD)
             # ==========================================================================
-            nomes_empresas = [e["nome"] for e in empresas_lista]
-            if len(nomes_empresas) == 0:
+            if len(nomes_empresas_validas) == 0:
                 texto_empresas = ""
-            elif len(nomes_empresas) == 1:
-                texto_empresas = f" e a {nomes_empresas[0]}"
-            elif len(nomes_empresas) == 2:
-                texto_empresas = f", {nomes_empresas[0]} e a {nomes_empresas[1]}"
+            elif len(nomes_empresas_validas) == 1:
+                texto_empresas = f" e {nomes_empresas_validas[0]}"
+            elif len(nomes_empresas_validas) == 2:
+                texto_empresas = f", {nomes_empresas_validas[0]} e {nomes_empresas_validas[1]}"
             else:
-                texto_empresas = ", " + ", ".join(nomes_empresas[:-1]) + f" e a {nomes_empresas[-1]}"
+                texto_empresas = ", " + ", ".join(nomes_empresas_validas[:-1]) + f" e {nomes_empresas_validas[-1]}"
             # ==========================================================================
 
             base_instr = "Acordo de Cooperação Técnica"
