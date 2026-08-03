@@ -466,12 +466,13 @@ if arquivo_pdf:
     st.info("Digite manualmente na caixinha abaixo o nome da empresa, ou das empresas. Ex: a FAURGS, o Banco do Brasil")
     num_empresas = st.number_input("Quantas empresas/instituições parceiras participam deste projeto?", min_value=1, max_value=10, value=1)
 
-    # 🛑 MUDEI A LÓGICA DE SALVAMENTO DAS EMPRESAS AQUI! 🛑
     empresas_lista = []
     for i in range(num_empresas):
         val_nome = dados_extraidos.get("empresa", "") if i == 0 else ""
-        nome_emp = st.text_input(f"Nome da Empresa {i+1}", value=val_nome, key=f"emp_nome_{i}")
-        empresas_lista.append(nome_emp) # Salva tudo, mesmo se estiver em branco, para processar no botão final.
+        nome_emp = st.text_input(f"Nome da Empresa {i+1}", value=val_nome, key=f"emp_nome_unica_{i}")
+
+        if nome_emp.strip():
+            empresas_lista.append({"nome": nome_emp.strip()})
 
     st.markdown("---")
     st.write("### 📊 Tabelas Estruturadas Consolidadas")
@@ -493,8 +494,7 @@ if arquivo_pdf:
     st.markdown("### 4️⃣ Passo 4: Geração de Documentos")
     st.write("Ao clicar no botão abaixo, o sistema irá preencher todos os documentos na nuvem e preparar um arquivo .ZIP para você baixar.")
 
-    # 🛑 O ALERTA ESTÁ AQUI PARA AVISAR SE A CAIXINHA ESTIVER VAZIA! 🛑
-    nomes_empresas_validas = [e.strip() for e in empresas_lista if e.strip()]
+    nomes_empresas_validas = [str(e["nome"]).strip() for e in empresas_lista if str(e["nome"]).strip()]
     if len(nomes_empresas_validas) == 0:
         st.warning("⚠️ ALERTA: Você não preencheu o nome de nenhuma empresa/parceira no campo '🏢 Empresas / Parceiras'. A chave no Word ficará vazia!")
 
