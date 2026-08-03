@@ -466,13 +466,14 @@ if arquivo_pdf:
     st.info("Digite manualmente na caixinha abaixo o nome da empresa, ou das empresas. Ex: a FAURGS, o Banco do Brasil")
     num_empresas = st.number_input("Quantas empresas/instituições parceiras participam deste projeto?", min_value=1, max_value=10, value=1)
 
-    empresas_lista = []
     for i in range(num_empresas):
-        val_nome = dados_extraidos.get("empresa", "") if i == 0 else ""
-        nome_emp = st.text_input(f"Nome da Empresa {i+1}", value=val_nome, key=f"emp_nome_unica_{i}")
-
-        if nome_emp.strip():
-            empresas_lista.append({"nome": nome_emp.strip()})
+        key_emp = f"emp_nome_unica_{i}"
+        
+        # Garante que o input não seja reescrito pelo sistema acidentalmente!
+        if key_emp not in st.session_state:
+            st.session_state[key_emp] = dados_extraidos.get("empresa", "") if i == 0 else ""
+            
+        st.text_input(f"Nome da Empresa {i+1}", key=key_emp)
 
     st.markdown("---")
     st.write("### 📊 Tabelas Estruturadas Consolidadas")
@@ -494,10 +495,6 @@ if arquivo_pdf:
     st.markdown("### 4️⃣ Passo 4: Geração de Documentos")
     st.write("Ao clicar no botão abaixo, o sistema irá preencher todos os documentos na nuvem e preparar um arquivo .ZIP para você baixar.")
 
-    nomes_empresas_validas = [str(e["nome"]).strip() for e in empresas_lista if str(e["nome"]).strip()]
-    if len(nomes_empresas_validas) == 0:
-        st.warning("⚠️ ALERTA: Você não preencheu o nome de nenhuma empresa/parceira no campo '🏢 Empresas / Parceiras'. A chave no Word ficará vazia!")
-
     if st.button("🚀 Processar Documentos"):
         with st.spinner("⏳ Processando e gerando os documentos... Por favor, aguarde!"):
             logs = []
@@ -506,6 +503,14 @@ if arquivo_pdf:
             # ==========================================================================
             # 🎯 LÓGICA DAS MÚLTIPLAS EMPRESAS (PARA O WORD)
             # ==========================================================================
+            
+            # Puxa o nome direto da memória inviolável (Session State) para não dar falha!
+            nomes_empresas_validas = []
+            for i in range(num_empresas):
+                nome_salvo = st.session_state.get(f"emp_nome_unica_{i}", "").strip()
+                if nome_salvo:
+                    nomes_empresas_validas.append(nome_salvo)
+            
             if len(nomes_empresas_validas) == 0:
                 texto_empresas = ""
             elif len(nomes_empresas_validas) == 1:
