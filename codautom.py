@@ -97,6 +97,7 @@ dados_extraidos = {
     "titulo": "", "numero": "", "empresa": "", "data_inicio_proj": "", "data_termino_proj": "",
     "resumo": "", "objetivos": "", "justificativa_proj": "", "resultados": "", "importancia_projeto": "",
     "plano_gestao": "", "objetivo_estrategico": "", "inovacao_bool": "", "inovacao_potencial": "",
+    "instrumento_juridico_pdf": "",
     "classificacoes_raw": [], "equipe_raw": [], "unidades_raw": [], "regioes_raw": [],
     "fundacao_sugerida": "FATEC", "tipo_processo_sugerido": "Acordo de Cooperação Técnica (ACT)"
 }
@@ -149,6 +150,7 @@ if arquivo_pdf:
         dados_extraidos["data_termino_proj"] = extrair(r'Término:\s*(\d{2}/\d{2}/\d{4})')
         dados_extraidos["classificacao"] = extrair(r'Classificação:\s*(.*?)\n')
         dados_extraidos["empresa"] = extrair(r'(?:Financiador[a]?|Empresa|Cooperante|Financiador):\s*(.*?)\n')
+        dados_extraidos["instrumento_juridico_pdf"] = extrair(r'Instrumento jurídico celebrado:\s*([^\n]+)')
 
         m_coord = re.search(r'Responsável pelo projeto:\s*(.*?)\s*\(\s*(\d+)\s*\)', texto_limpo, re.IGNORECASE)
         if m_coord: dados_extraidos["coord_geral_pdf"] = {"nome": m_coord.group(1).strip(), "siape": m_coord.group(2).strip()}
@@ -440,6 +442,9 @@ if arquivo_pdf:
             siape_diretor = st.text_input("SIAPE do Diretor")
             st.text_input("Classificação", value=dados_extraidos.get("classificacao", ""), disabled=True)
             data_termino_edit = st.text_input("Data de Término", value=dados_extraidos.get("data_termino_proj", ""))
+            
+            instrumento_juridico_edit = st.text_input("Instrumento Jurídico (Excel)", value=dados_extraidos.get("instrumento_juridico_pdf", ""))
+            
             resultados = st.text_area("Resultados Esperados", value=dados_extraidos.get("resultados", ""), height=120)
             metas = st.text_area("Metas do Projeto (Opcional)", placeholder="Digite as metas do projeto...", height=120)
 
@@ -462,30 +467,11 @@ if arquivo_pdf:
 
     empresas_lista = []
     for i in range(num_empresas):
-        with st.container():
-            st.markdown(f"**Empresa {i+1}**")
-            c_emp1, c_emp2 = st.columns(2)
-            
-            val_nome = dados_extraidos.get("empresa", "") if i == 0 else ""
-            
-            nome_emp = c_emp1.text_input(f"Nome da Empresa {i+1}", value=val_nome, key=f"emp_nome_{i}")
-            cnpj_emp = c_emp2.text_input(f"CNPJ {i+1}", key=f"emp_cnpj_{i}")
+        val_nome = dados_extraidos.get("empresa", "") if i == 0 else ""
+        nome_emp = st.text_input(f"Nome da Empresa {i+1}", value=val_nome, key=f"emp_nome_{i}")
 
-            c_emp3, c_emp4, c_emp5, c_emp6 = st.columns([3, 2, 1, 1])
-            end_emp = c_emp3.text_input(f"Endereço {i+1}", key=f"emp_end_{i}")
-            cid_emp = c_emp4.text_input(f"Cidade {i+1}", key=f"emp_cid_{i}")
-            uf_emp = c_emp5.text_input(f"UF {i+1}", key=f"emp_uf_{i}")
-            cep_emp = c_emp6.text_input(f"CEP {i+1}", key=f"emp_cep_{i}")
-
-            if nome_emp:
-                empresas_lista.append({
-                    "nome": nome_emp,
-                    "cnpj": cnpj_emp,
-                    "endereco": end_emp,
-                    "cidade": cid_emp,
-                    "uf": uf_emp,
-                    "cep": cep_emp
-                })
+        if nome_emp.strip():
+            empresas_lista.append({"nome": nome_emp.strip()})
 
     st.markdown("---")
     st.write("### 📊 Tabelas Estruturadas Consolidadas")
@@ -515,7 +501,7 @@ if arquivo_pdf:
             # ==========================================================================
             # 🎯 LÓGICA DAS MÚLTIPLAS EMPRESAS (PARA O WORD)
             # ==========================================================================
-            nomes_empresas = [str(e["nome"]).strip() for e in empresas_lista if str(e["nome"]).strip()]
+            nomes_empresas = [e["nome"] for e in empresas_lista]
             if len(nomes_empresas) == 0:
                 texto_empresas = ""
             elif len(nomes_empresas) == 1:
@@ -555,7 +541,7 @@ if arquivo_pdf:
                 "titulo_projeto": tit_proj, "tituloprojeto": tit_proj,
                 "n_projeto": n_proj, "nprojeto": n_proj,
                 "classificacao": dados_extraidos["classificacao"],
-                "instrumento_completo": texto_instrumento_completo,
+                "instrumento_completo": instrumento_juridico_edit,
                 "texto_empresas": texto_empresas,
                 "nome_coord": c_g_n, "nomecoord": c_g_n,
                 "siape_coord": c_g_s, "siapecoord": c_g_s,
@@ -681,48 +667,49 @@ if arquivo_pdf:
                                 except Exception as err:
                                     logs.append(f"Aviso na célula {celula}: {str(err)}")
 
-                            if tipo_processo == "Acordo de Cooperação Técnica (ACT)":
-                                escrever_excel("F30", tit_proj)
-                                if dados_extraidos.get("data_inicio_proj", ""): escrever_excel("C31", dados_extraidos.get("data_inicio_proj", ""))
-                                escrever_excel("F32", data_termino_edit)
-                                escrever_excel("F33", c_g_n)
-                                escrever_excel("F34", c_g_s)
-                                escrever_excel("F35", f_nome)
-                                escrever_excel("F36", f_siape)
-                                escrever_excel("F37", nome_coord_adm)
-                                escrever_excel("F38", siape_coord_adm)
-                                escrever_excel("F39", n_proj)
-                                escrever_excel("F40", dados_extraidos.get("classificacao", ""))
-                                escrever_excel("F41", texto_instrumento_completo)
+                            nome_fiscal_excel = f_nome if str(f_nome).strip() != "" else "(Não possui)"
+                            nome_coord_adm_excel = nome_coord_adm if str(nome_coord_adm).strip() != "" else "(Não possui)"
 
-                                escrever_excel("A45", resumo)
-                                escrever_excel("A49", objetivos)
-                                escrever_excel("A53", justificativa)
-                                escrever_excel("A57", resultados)
+                            if tipo_processo == "Acordo de Cooperação Técnica (ACT)":
+                                escrever_excel("C17", tit_proj)
+                                escrever_excel("C19", data_termino_edit)
+                                escrever_excel("C20", c_g_n)
+                                escrever_excel("C21", c_g_s)
+                                escrever_excel("C22", nome_fiscal_excel)
+                                escrever_excel("C23", f_siape)
+                                escrever_excel("C24", nome_coord_adm_excel)
+                                escrever_excel("C25", siape_coord_adm)
+                                escrever_excel("C26", n_proj)
+                                escrever_excel("C27", dados_extraidos.get("classificacao", ""))
+                                escrever_excel("C28", instrumento_juridico_edit)
+
+                                escrever_excel("A32", resumo)
+                                escrever_excel("A36", objetivos)
+                                escrever_excel("A40", justificativa)
+                                escrever_excel("A44", resultados)
 
                             else:
-                                escrever_excel("C30", tit_proj)
-                                if dados_extraidos.get("data_inicio_proj", ""): escrever_excel("B31", dados_extraidos.get("data_inicio_proj", ""))
-                                escrever_excel("C32", data_termino_edit)
-                                escrever_excel("C33", c_g_n)
-                                escrever_excel("C34", c_g_s)
-                                escrever_excel("C35", f_nome)
-                                escrever_excel("C36", f_siape)
-                                escrever_excel("C37", nome_coord_adm)
-                                escrever_excel("C38", siape_coord_adm)
-                                escrever_excel("C39", n_proj)
-                                escrever_excel("C40", dados_extraidos.get("classificacao", ""))
-                                escrever_excel("C41", texto_instrumento_completo)
+                                escrever_excel("C25", tit_proj)
+                                escrever_excel("C27", data_termino_edit)
+                                escrever_excel("C28", c_g_n)
+                                escrever_excel("C29", c_g_s)
+                                escrever_excel("C30", nome_fiscal_excel)
+                                escrever_excel("C31", f_siape)
+                                escrever_excel("C32", nome_coord_adm_excel)
+                                escrever_excel("C33", siape_coord_adm)
+                                escrever_excel("C34", n_proj)
+                                escrever_excel("C35", dados_extraidos.get("classificacao", ""))
+                                escrever_excel("C36", instrumento_juridico_edit)
                                 
-                                escrever_excel("A45", resumo)
-                                escrever_excel("A49", objetivos)
-                                escrever_excel("A53", justificativa)
-                                escrever_excel("A57", resultados)
+                                escrever_excel("A40", resumo)
+                                escrever_excel("A44", objetivos)
+                                escrever_excel("A48", justificativa)
+                                escrever_excel("A52", resultados)
 
                                 equipe_excel = [p for p in equipe_final if p.get("Função", "") != "Fiscal" and str(p.get("Nome", "")).strip() != ""]
                                 for idx, p in enumerate(equipe_excel):
-                                    linha = 96 + idx
-                                    if linha > 137:
+                                    linha = 104 + idx
+                                    if linha > 145:
                                         break
                                     escrever_excel(f"C{linha}", p.get("Nome", ""))
                                     escrever_excel(f"F{linha}", p.get("SIAPE", ""))
