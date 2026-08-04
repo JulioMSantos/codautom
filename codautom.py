@@ -706,15 +706,7 @@ if arquivo_pdf:
                                 
                                 escrever_excel("A46", resumo)
                                 escrever_excel("A50", objetivos)
-                                escrever_excel("A54", justificativa)
-
-                                equipe_excel = [p for p in equipe_final if p.get("Função", "") != "Fiscal" and str(p.get("Nome", "")).strip() != ""]
-                                for idx, p in enumerate(equipe_excel):
-                                    linha = 104 + idx
-                                    if linha > 145:
-                                        break
-                                    escrever_excel(f"C{linha}", p.get("Nome", ""))
-                                    escrever_excel(f"F{linha}", p.get("SIAPE", ""))
+                                escrever_excel("A54", resultados)
 
                             excel_buffer = io.BytesIO()
                             wb.save(excel_buffer)
