@@ -1,6 +1,5 @@
-streamlit
+streamlit>=1.42.0
 pandas
 docxtpl
 pdfplumber
 openpyxl
-starlette<0.45.0
