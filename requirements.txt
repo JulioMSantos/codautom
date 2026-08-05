@@ -3,3 +3,4 @@ pandas
 docxtpl
 pdfplumber
 openpyxl
+starlette<0.45.0
