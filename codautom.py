@@ -7,6 +7,7 @@ import pdfplumber
 import re
 import openpyxl
 from openpyxl.utils import coordinate_to_tuple
+from openpyxl.styles import Alignment
 import io
 import zipfile
 
@@ -662,15 +663,38 @@ if arquivo_pdf:
                                 if val_str in ["", "-", "None", "Não se aplica"]: val_str = None
                                 try:
                                     r_row, r_col = coordinate_to_tuple(celula)
+                                    
+                                    # --- MOTOR DE AUTOAJUSTE DE ALTURA (V2.1) ---
+                                    if val_str and len(val_str) > 0:
+                                        qtd_quebras = val_str.count('\n')
+                                        # Calcula 1 linha a cada 110 letras + quebras de linha existentes
+                                        linhas_estimadas = (len(val_str) / 110.0) + qtd_quebras
+                                        if linhas_estimadas < 1: 
+                                            linhas_estimadas = 1
+                                        
+                                        # Altura = (linhas * 15) + 10 de margem
+                                        altura_calculada = (linhas_estimadas * 15) + 10
+                                        
+                                        # Só redimensiona se a altura nova for maior que a atual padrão
+                                        altura_atual = ws.row_dimensions[r_row].height
+                                        if altura_atual is None or altura_calculada > altura_atual:
+                                            ws.row_dimensions[r_row].height = altura_calculada
+                                    # --------------------------------------------
+
                                     for merged_range in list(ws.merged_cells.ranges):
                                         min_col, min_row, max_col, max_row = merged_range.bounds
                                         if min_col <= r_col <= max_col and min_row <= r_row <= max_row:
                                             intervalo = str(merged_range)
                                             ws.unmerge_cells(intervalo)
-                                            ws.cell(row=min_row, column=min_col).value = val_str
+                                            cel_alvo = ws.cell(row=min_row, column=min_col)
+                                            cel_alvo.value = val_str
+                                            cel_alvo.alignment = Alignment(wrap_text=True, vertical='top')
                                             ws.merge_cells(intervalo)
                                             return
-                                    ws.cell(row=r_row, column=r_col).value = val_str
+                                            
+                                    cel_alvo = ws.cell(row=r_row, column=r_col)
+                                    cel_alvo.value = val_str
+                                    cel_alvo.alignment = Alignment(wrap_text=True, vertical='top')
                                 except Exception as err:
                                     logs.append(f"Aviso na célula {celula}: {str(err)}")
 
@@ -701,6 +725,7 @@ if arquivo_pdf:
                                 escrever_excel("C37", nome_fiscal_excel)
                                 escrever_excel("C39", nome_coord_adm_excel)
                                 escrever_excel("C41", n_proj)
+                                escrever_excel("C35", dados_extraidos.get("classificacao", ""))
                                 escrever_excel("C42", instrumento_juridico_edit)
                                 
                                 escrever_excel("A46", resumo)
@@ -737,4 +762,4 @@ if arquivo_pdf:
         )
 
 st.markdown("<br><hr>", unsafe_allow_html=True)
-st.markdown("<div style='text-align: center; color: #888888; padding: 10px; font-size: 14px;'>⚡ <b>Raichu Pro V2.0.0</b> | Desenvolvido por Julio Maia 👨‍💻</div>", unsafe_allow_html=True)
+st.markdown("<div style='text-align: center; color: #888888; padding: 10px; font-size: 14px;'>⚡ <b>Raichu Pro V2.1.0</b> | Desenvolvido por Julio Maia 👨‍💻</div>", unsafe_allow_html=True)
