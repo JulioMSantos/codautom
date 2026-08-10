@@ -725,8 +725,7 @@ if arquivo_pdf:
                                 escrever_excel("C37", nome_fiscal_excel)
                                 escrever_excel("C39", nome_coord_adm_excel)
                                 escrever_excel("C41", n_proj)
-                                escrever_excel("C35", dados_extraidos.get("classificacao", ""))
-                                escrever_excel("C42", instrumento_juridico_edit)
+                                escrever_excel("C42", texto_instrumento_completo)
                                 
                                 escrever_excel("A46", resumo)
                                 escrever_excel("A50", objetivos)
