@@ -5,6 +5,10 @@ import pdfplumber
 import re
 import io
 import uvicorn
+from fastapi.responses import StreamingResponse
+import openpyxl
+from openpyxl.utils import coordinate_to_tuple
+from openpyxl.styles import Alignment
 
 app = FastAPI(title="Raichu Pro - Back-end Seguro (Pilar 2 - Equipe Completa)")
 
@@ -255,3 +259,74 @@ async def processar_pdf(arquivo: UploadFile = File(...)):
 
 if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=8000)
+    # ==========================================
+# PILAR 3: GERAÇÃO DE DOCUMENTOS (EXCEL)
+# ==========================================
+
+@app.post("/gerar-excel/")
+async def gerar_plano_trabalho(dados: DadosProjetoSeguros):
+    try:
+        # ATENÇÃO: Coloque aqui o caminho exato de um modelo Excel seu para o teste
+        caminho_template = "Modelos/ACT/Seu_Modelo_ACT.xlsx" 
+        
+        wb = openpyxl.load_workbook(caminho_template)
+        ws = wb["Plano de Trabalho"] if "Plano de Trabalho" in wb.sheetnames else wb.worksheets[0]
+
+        # --- O SEU MOTOR DE AUTOAJUSTE DE CÉLULAS ---
+        def escrever_excel(celula, valor):
+            val_str = str(valor).strip() if valor is not None else ""
+            if val_str in ["", "-", "None", "Não se aplica"]: val_str = None
+            try:
+                r_row, r_col = coordinate_to_tuple(celula)
+                
+                # Cálculo de altura de linha
+                if val_str and len(val_str) > 0:
+                    qtd_quebras = val_str.count('\n')
+                    linhas_estimadas = (len(val_str) / 110.0) + qtd_quebras
+                    if linhas_estimadas < 1: linhas_estimadas = 1
+                    altura_calculada = (linhas_estimadas * 15) + 10
+                    
+                    altura_atual = ws.row_dimensions[r_row].height
+                    if altura_atual is None or altura_calculada > altura_atual:
+                        ws.row_dimensions[r_row].height = altura_calculada
+
+                # Tratamento de mesclagem
+                for merged_range in list(ws.merged_cells.ranges):
+                    min_col, min_row, max_col, max_row = merged_range.bounds
+                    if min_col <= r_col <= max_col and min_row <= r_row <= max_row:
+                        intervalo = str(merged_range)
+                        ws.unmerge_cells(intervalo)
+                        cel_alvo = ws.cell(row=min_row, column=min_col)
+                        cel_alvo.value = val_str
+                        cel_alvo.alignment = Alignment(wrap_text=True, vertical='top')
+                        ws.merge_cells(intervalo)
+                        return
+                        
+                cel_alvo = ws.cell(row=r_row, column=r_col)
+                cel_alvo.value = val_str
+                cel_alvo.alignment = Alignment(wrap_text=True, vertical='top')
+            except Exception as err:
+                print(f"Aviso na célula {celula}: {str(err)}")
+
+        # --- PREENCHENDO COM OS DADOS DA API ---
+        # Aqui nós pegamos o JSON validado (dados) e enviamos para a planilha
+        escrever_excel("C17", dados.titulo)
+        escrever_excel("C20", dados.coordenador)
+        escrever_excel("C27", dados.classificacao)
+        
+        # (Opcional) Podemos fazer um loop para listar os nomes da equipe se houver um campo para isso
+        # escrever_excel("A50", dados.equipe[0].Nome se houver membros)
+
+        # --- SALVANDO EM MEMÓRIA E ENVIANDO O DOWNLOAD ---
+        excel_buffer = io.BytesIO()
+        wb.save(excel_buffer)
+        excel_buffer.seek(0) # Volta o ponteiro da memória para o começo
+        
+        return StreamingResponse(
+            excel_buffer, 
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": "attachment; filename=Plano_de_Trabalho_Raichu.xlsx"}
+        )
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro crítico ao gerar o Excel: {str(e)}")
