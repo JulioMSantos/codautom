@@ -4,3 +4,7 @@ pandas
 docxtpl
 pdfplumber
 openpyxl
+fastapi
+uvicorn
+pydantic
+python-multipart
