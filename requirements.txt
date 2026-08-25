@@ -1,6 +1,9 @@
-streamlit
-pandas
+fastapi
+uvicorn
+python-docx
 docxtpl
-pdfplumber
 openpyxl
-graphviz
+pdfplumber
+pandas
+requests
+pydantic
