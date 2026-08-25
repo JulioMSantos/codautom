@@ -195,9 +195,9 @@ with aba_home:
 # ==============================================================================
 with aba_gerador:
     st.markdown("### ⚡ Painel de Operações - Raichu Pro")
-    st.markdown("Insira o seu relatório em PDF abaixo para iniciar o preenchimento automático dos dados.")
+    st.markdown("Insira o relatório do portal de projetos abaixo para iniciar o preenchimento automático dos dados.")
     
-    arquivo_pdf = st.file_uploader("Insira o seu relatório do projeto (.pdf)", type=["pdf"])
+    arquivo_pdf = st.file_uploader("Insira o relatório do portal de projetos (.pdf)", type=["pdf"])
 
     fundacoes_dados = {
         "FATEC": {"fundacao": "FATEC - Fundação de Apoio à Tecnologia e Ciência", "sigla_fundacao": "FATEC"},
