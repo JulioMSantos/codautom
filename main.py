@@ -1,332 +1,297 @@
-from fastapi import FastAPI, File, UploadFile, HTTPException
-from pydantic import BaseModel, field_validator
-from typing import List
-import pdfplumber
-import re
+import os
 import io
-import uvicorn
-from fastapi.responses import StreamingResponse
+import re
+import zipfile
 import openpyxl
 from openpyxl.utils import coordinate_to_tuple
 from openpyxl.styles import Alignment
-
-app = FastAPI(title="Raichu Pro - Back-end Seguro (Pilar 2 - Equipe Completa)")
-
-# ==========================================
-# MODELOS DE SEGURANÇA (PYDANTIC)
-# ==========================================
-
-# Atualizamos o modelo para receber TODOS os dados que sua regex extrai
-class ParticipanteSeguro(BaseModel):
-    Nome: str
-    SIAPE: str
-    Vínculo: str = "Outro"
-    Lotação: str = ""
-    Função: str = "Participante"
-    Bolsa: str = "Não"
-    CH_D: str = "0"
-    CH_F: str = "0"
-    Início: str = ""
-    Término: str = ""
-    Chefia_Imediata: str = ""
-    SIAPE_Chefia: str = ""
-
-    # Limpa possíveis ataques (XSS) em qualquer campo de texto
-    @field_validator('Nome', 'Vínculo', 'Lotação', 'Função')
-    def limpar_texto(cls, valor):
-        texto_limpo = re.sub(r'<[^>]*>', '', str(valor))
-        return texto_limpo.strip()
-
-class DadosProjetoSeguros(BaseModel):
-    titulo: str
-    coordenador: str
-    classificacao: str
-    equipe: List[ParticipanteSeguro] = [] 
-
-    @field_validator('titulo', 'coordenador', 'classificacao')
-    def limpar_texto(cls, valor):
-        texto_limpo = re.sub(r'<[^>]*>', '', valor)
-        return texto_limpo.strip()
+from fastapi import FastAPI, HTTPException, Response
+from pydantic import BaseModel
+from docxtpl import DocxTemplate
+from datetime import datetime
 
 # ==========================================
-# FUNÇÕES DE EXTRAÇÃO DO SEU CÓDIGO ORIGINAL
+# INICIALIZAÇÃO
 # ==========================================
+app = FastAPI()
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-def extrair_bloco(inicio, fins, texto):
-    match_inicio = re.search(inicio, texto, re.IGNORECASE)
-    if not match_inicio:
-        return ""
-    pos_ini = match_inicio.start()
-    pos_fim = len(texto)
-    for f in fins:
-        match_fim = re.search(f, texto[pos_ini:], re.IGNORECASE)
-        if match_fim:
-            pos_temp = pos_ini + match_fim.start()
-            if pos_temp < pos_fim:
-                pos_fim = pos_temp
-    return texto[pos_ini:pos_fim]
+# ==========================================
+# MODELOS PYDANTIC (A estrutura robusta de dados)
+# ==========================================
+class DadosProjeto(BaseModel):
+    titulo: str = ""
+    numero: str = ""
+    resumo: str = ""
+    objetivos: str = ""
+    justificativa: str = ""
+    importancia: str = ""
+    justificativa_fund: str = ""
+    resultados: str = ""
+    metas: str = ""
+    classificacao: str = ""
+    instrumento_juridico: str = ""
+    data_termino: str = ""
+    tipo_processo: str = ""
+    fundacao_sigla: str = ""
+    status_fund: str = ""
+    classificacoes_raw: list = []
 
-def extrair_dados_pdf(arquivo_bytes: bytes) -> dict:
-    dados = {
-        "titulo": "Não encontrado",
-        "coordenador": "Não encontrado",
-        "classificacao": "Não encontrado",
-        "equipe": []
-    }
-    
-    with pdfplumber.open(io.BytesIO(arquivo_bytes)) as pdf:
-        texto_completo = ""
-        for pagina in pdf.pages:
-            texto = pagina.extract_text()
-            if texto:
-                texto_completo += texto + "\n"
-                
-    # --- SUAS REGEX BÁSICAS ---
-    # --- SUAS REGEX BÁSICAS (Extraídas do codautom.py) ---
-    def extrair(regex, group=1):
-        m = re.search(regex, texto_completo, re.IGNORECASE)
-        return m.group(group).strip() if m else ""
+class Pessoas(BaseModel):
+    coordenador: str = ""
+    siape_coord: str = ""
+    fiscal: str = ""
+    siape_fiscal: str = ""
+    coord_adm: str = ""
+    siape_adm: str = ""
+    diretor: str = ""
+    siape_diretor: str = ""
 
-    # Usando exatamente a sua lógica de extração
-    dados["titulo"] = extrair(r'Título:\s*(.*?)\n')
-    dados["classificacao"] = extrair(r'Classificação:\s*(.*?)\n')
-    
-    # A sua regex brilhante para pegar nome e SIAPE do responsável
-    m_coord = re.search(r'Responsável pelo projeto:\s*(.*?)\s*\(\s*(\d+)\s*\)', texto_completo, re.IGNORECASE)
-    if m_coord:
-        dados["coordenador"] = m_coord.group(1).strip()
-        # O SIAPE do coordenador ficaria no group(2) se precisássemos
-    match_titulo = re.search(r'Título do projeto:\s*(.*?)\n', texto_completo, re.IGNORECASE)
-    if match_titulo: dados["titulo"] = match_titulo.group(1).strip()
-        
-    match_coord = re.search(r'Nome do Coordenador:\s*(.*?)\n', texto_completo, re.IGNORECASE)
-    if match_coord: dados["coordenador"] = match_coord.group(1).strip()
-        
-    match_classificacao = re.search(r'Classificação:\s*(.*?)\n', texto_completo, re.IGNORECASE)
-    if match_classificacao: dados["classificacao"] = match_classificacao.group(1).strip()
-        
-    # --- A SUA LÓGICA BRILHANTE DA EQUIPE ---
-    bloco_participantes = extrair_bloco(r'PARTICIPANTES', [r'UNIDADES VINCULADAS\s*\n', r'CLASSIFICAÇÕES', r'REGIÕES DE ATUAÇÃO'], texto_completo)
-    
-    if not bloco_participantes:
-        bloco_participantes = texto_completo # Fallback se não achar o bloco
+class PayloadCompleto(BaseModel):
+    dados_projeto: DadosProjeto
+    pessoas: Pessoas
+    empresas: list = []
+    equipe: list = []
 
-    matches_participantes = list(re.finditer(r'(\d{5,15})\s*-\s*([A-ZÀ-Ÿ\s\']+?)\s*(?=[A-ZÀ-Ÿ][a-zà-ÿ]|UNIDADES VINCULADAS|CLASSIFICAÇÕES|$)', bloco_participantes))
-    
-    for i, match in enumerate(matches_participantes):
-        siape = match.group(1).strip()
-        nome_bruto = match.group(2).strip()
+def data_extenso(dt):
+    meses = {1: "janeiro", 2: "fevereiro", 3: "março", 4: "abril", 5: "maio", 6: "junho",
+             7: "julho", 8: "agosto", 9: "setembro", 10: "outubro", 11: "novembro", 12: "dezembro"}
+    return f"{dt.day} de {meses[dt.month]} de {dt.year}"
 
-        nome_limpo = re.sub(r'\s+', ' ', nome_bruto).strip()
-        corte_idx = len(nome_limpo)
+# ==========================================
+# ROTA MESTRE DE GERAÇÃO
+# ==========================================
+@app.post("/gerar-zip-completo/")
+async def gerar_zip_completo(payload: PayloadCompleto):
+    try:
+        d_proj = payload.dados_projeto
+        pess = payload.pessoas
+        equipe_final = payload.equipe
+        nomes_empresas_validas = payload.empresas
+        fund_sigla = d_proj.fundacao_sigla
 
-        palavras_corte = [
-            "VÍNCULO", "VINCULO", "CURSO", "LOTAÇÃO", "LOTACAO",
-            "FUNÇÃO", "FUNCAO", "UNIDADE", "CLASSIFICA", "PARTICIPANTE",
-            "CH DENTRO", "CH FORA", "INÍCIO", "INICIO", "TÉRMINO", "TERMINO",
-            "DEPARTAMENTO", "OBSERVA", "VALOR", "TIPO", "$$$"
-        ]
-
-        for p in palavras_corte:
-            idx = nome_limpo.upper().find(p)
-            if idx != -1 and idx < corte_idx:
-                corte_idx = idx
-
-        nome = nome_limpo[:corte_idx].strip(" -/")
-        if not nome or len(nome) < 2:
-            continue
-
-        pos_inicio = match.end()
-        pos_fim = matches_participantes[i+1].start() if i + 1 < len(matches_participantes) else pos_inicio + 400
-        janela_texto = bloco_participantes[pos_inicio:pos_fim]
-        janela_limpa = " ".join(janela_texto.split())
-        
-        vinculo, lotacao, funcao, bolsa, ch_d, ch_f, data_ini, data_fim = "Outro", "", "Participante", "Não", "0", "0", "", ""
-
-        m_info = re.search(r'(Coordenador Administrativo|Coordenador|Estagiário|Colaborador|Fiscal|Participante|Membro|Pesquisador|Responsável Técnico|Responsável|Técnico|Bolsista)\s+(Sim|Não|Nao)[\s\S]*?(\d+)\s+(\d+)\s+(\d{2}/\d{2}/\d{4})\s+(\d{2}/\d{2}/\d{4})', janela_limpa, re.IGNORECASE)
-
-        prefixos_ufsm_regex = [
-            r"Estudante de Pós-\s*graduação", r"Estudante de Pós-Graduação", r"Estudante de Graduação", r"Estudante de graduação",
-            r"Estudante de Ensino Médio", r"Técnico[- ]Administrativo em Educação", r"Técnico[- ]Administrativo", r"Tecnico Administrativo",
-            r"Docente", r"Pesquisador", r"Participante Externo", r"Visitante", r"Estudante", r"Servidor", r"Outro"
-        ]
-
-        if m_info:
-            text_before = janela_limpa[:m_info.start()].strip()
-            text_after = janela_limpa[m_info.end():].strip()
-
-            partes_nome_perdidas = []
-            for w in text_after.split():
-                if w.lower() in ["administrativo", "em", "educação", "educacao", "técnico", "tecnico", "responsável", "responsavel"]:
-                    break
-                if w.isupper() and len(w) > 1 and w not in ["SIM", "NÃO", "NAO"]:
-                    partes_nome_perdidas.append(w)
-
-            if partes_nome_perdidas:
-                nome_final_teste = nome + " " + " ".join(partes_nome_perdidas)
-                corte_idx_2 = len(nome_final_teste)
-                for p in palavras_corte:
-                    idx = nome_final_teste.upper().find(p)
-                    if idx != -1 and idx < corte_idx_2:
-                        corte_idx_2 = idx
-                nome = nome_final_teste[:corte_idx_2].strip(" -/")
-
-            vinculo_encontrado = False
-            for prefixo in prefixos_ufsm_regex:
-                match_vinculo = re.match(r'(?i)^' + prefixo, text_before)
-                if match_vinculo:
-                    vinculo = match_vinculo.group(0).strip()
-                    vinculo = re.sub(r'\s+', ' ', vinculo).replace('- ', '-') 
-                    lotacao = text_before[match_vinculo.end():].strip()
-                    vinculo_encontrado = True
-                    break
-
-            if not vinculo_encontrado:
-                partes = text_before.split(" ", 1)
-                vinculo = partes[0] if len(partes) > 0 else "Outro"
-                lotacao = partes[1] if len(partes) > 1 else ""
-
-            if "técnico" in vinculo.lower() or "técnico" in janela_limpa.lower() or "administrativo" in janela_limpa.lower():
-                if "administrativo" in janela_limpa.lower() or "educação" in janela_limpa.lower() or "educacao" in janela_limpa.lower():
-                    vinculo = "Técnico-Administrativo em Educação"
-
-            palavras_extras_lotacao = []
-            for w in text_after.split():
-                if w.isupper() and w not in partes_nome_perdidas and w not in ["SIM", "NÃO", "NAO", "FISCAL", "COORDENADOR", "PESQUISADOR", "TÉCNICO", "TECNICO", "BOLSISTA"]:
-                    palavras_extras_lotacao.append(w)
-            if palavras_extras_lotacao:
-                lotacao = lotacao + " " + " ".join(palavras_extras_lotacao)
-
-            lotacao_limpa = re.sub(r'\s+', ' ', lotacao).strip()
-            corte_lot = len(lotacao_limpa)
-            palavras_corte_lotacao = ["UNIDADE", "CLASSIFICA", "PARTICIPANTE", "FUNÇÃO", "FUNCAO", "VALOR", "INÍCIO", "INICIO", "TÉRMINO", "TERMINO", "OBSERVA", "TIPO", "$$$"]
-            
-            for p in palavras_corte_lotacao:
-                idx = lotacao_limpa.upper().find(p)
-                if idx != -1 and idx < corte_lot:
-                    corte_lot = idx
-            lotacao = lotacao_limpa[:corte_lot].strip(" -/")
-
-            funcao = m_info.group(1).title()
-            bolsa = m_info.group(2).title()
-            ch_d = m_info.group(3)
-            ch_f = m_info.group(4)
-            data_ini = m_info.group(5)
-            data_fim = m_info.group(6)
+        if len(nomes_empresas_validas) == 0:
+            texto_empresas = ""
+        elif len(nomes_empresas_validas) == 1:
+            texto_empresas = f" e {nomes_empresas_validas[0]}"
+        elif len(nomes_empresas_validas) == 2:
+            texto_empresas = f", {nomes_empresas_validas[0]} e {nomes_empresas_validas[1]}"
         else:
-            for prefixo in prefixos_ufsm_regex:
-                match_vinculo = re.match(r'(?i)^' + prefixo, janela_limpa)
-                if match_vinculo:
-                    vinculo = match_vinculo.group(0).strip()
-                    vinculo = re.sub(r'\s+', ' ', vinculo).replace('- ', '-')
-                    remainder = janela_limpa[match_vinculo.end():]
-                    lotacao = re.split(r'(?i)(Coordenador|Participante|Pesquisador|Estagiário|Colaborador|Membro|Fiscal|Responsável|Técnico|Bolsista)', remainder)[0].strip()
-                    break
+            texto_empresas = ", " + ", ".join(nomes_empresas_validas[:-1]) + f" e {nomes_empresas_validas[-1]}"
 
-        # A GRANDE MUDANÇA: Em vez de adicionar em "equipe_raw", adicionamos na lista de equipe do Pydantic
-        dados["equipe"].append({
-            "Nome": nome, "SIAPE": siape, "Vínculo": vinculo.title(), "Lotação": lotacao,
-            "Função": funcao, "Bolsa": bolsa, "CH_D": ch_d, "CH_F": ch_f, "Início": data_ini, "Término": data_fim,
-            "Chefia_Imediata": "", "SIAPE_Chefia": ""
-        })
+        base_instr = "Acordo de Cooperação Técnica"
+        if d_proj.tipo_processo == "Acordo de Parceria (AP)": base_instr = "Acordo de Parceria"
+        elif d_proj.tipo_processo == "Contrato Global (CG)": base_instr = "Contrato"
+
+        sufixo_classificacao = d_proj.classificacao.strip()
+        for c in d_proj.classificacoes_raw:
+            if isinstance(c, dict) and "caracterização das ações de extensão" in str(c.get("Tipo de Classificação", "")).lower():
+                val = str(c.get("Classificação", ""))
+                m_suf = re.search(r'[\d\.]+\s*-\s*(.*)', val)
+                sufixo_classificacao = m_suf.group(1).strip() if m_suf else val.strip()
+                break
         
-    return dados
+        texto_instrumento_completo = f"{base_instr} com {sufixo_classificacao}" if sufixo_classificacao else base_instr
 
-# ==========================================
-# ROTAS DA API
-# ==========================================
+        if d_proj.tipo_processo == "Contrato Global (CG)": 
+            pasta_alvo = os.path.join(BASE_DIR, "Modelos", "AG", fund_sigla) if d_proj.status_fund == "Já definida" else os.path.join(BASE_DIR, "Modelos", "AG", "SEM")
+        elif d_proj.tipo_processo == "Acordo de Parceria (AP)": 
+            pasta_alvo = os.path.join(BASE_DIR, "Modelos", "AP", fund_sigla) if d_proj.status_fund == "Já definida" else os.path.join(BASE_DIR, "Modelos", "AP", "SEM")
+        else: 
+            pasta_alvo = os.path.join(BASE_DIR, "Modelos", "ACT")
 
-PDF_MAGIC_NUMBER = b"%PDF-"
+        if not os.path.exists(pasta_alvo):
+            raise HTTPException(status_code=404, detail=f"Pasta de modelos não encontrada: {pasta_alvo}")
 
-@app.post("/extrair-dados/", response_model=DadosProjetoSeguros)
-async def processar_pdf(arquivo: UploadFile = File(...)):
-    
-    if not arquivo.filename.lower().endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="Erro: O arquivo deve ter a extensão .pdf")
+        # MAPEAMENTO TOTAL DE VARIÁVEIS DO WORD
+        ctx_global = {
+            "data_atual": data_extenso(datetime.now()), "dataatual": data_extenso(datetime.now()),
+            "nome_projeto": d_proj.titulo, "nomeprojeto": d_proj.titulo,
+            "titulo_projeto": d_proj.titulo, "tituloprojeto": d_proj.titulo,
+            "titulo": d_proj.titulo,
+            "n_projeto": d_proj.numero, "nprojeto": d_proj.numero,
+            "numero": d_proj.numero,
+            "classificacao": d_proj.classificacao,
+            "instrumento_completo": d_proj.instrumento_juridico,
+            "texto_empresas": texto_empresas,
+            "nome_coord": pess.coordenador, "nomecoord": pess.coordenador,
+            "siape_coord": pess.siape_coord, "siapecoord": pess.siape_coord,
+            "nome_fiscal": pess.fiscal, "nomefiscal": pess.fiscal,
+            "fiscal": pess.fiscal,
+            "siape_fiscal": pess.siape_fiscal, "siapefiscal": pess.siape_fiscal,
+            "nome_coord_adm": pess.coord_adm, "nomecoordadm": pess.coord_adm,
+            "siape_adm": pess.siape_adm, "siapeadm": pess.siape_adm,
+            "membros": equipe_final, 
+            "objetivos": d_proj.objetivos, "metas": d_proj.metas,
+            "justificativa": d_proj.justificativa, "resultados": d_proj.resultados,
+            "importancia_projeto": d_proj.importancia, "importanciaprojeto": d_proj.importancia,
+            "justificativa_fund": d_proj.justificativa_fund, "justificativafund": d_proj.justificativa_fund,
+            "diretor_unidade": pess.diretor, "diretorunidade": pess.diretor,
+            "siape_diretor": pess.siape_diretor, "siapediretor": pess.siape_diretor,
+            "sigla_fundacao": fund_sigla
+        }
 
-    arquivo_bytes = await arquivo.read()
-    
-    if arquivo_bytes[:5] != PDF_MAGIC_NUMBER:
-        raise HTTPException(status_code=400, detail="Acesso Negado: O arquivo não é um PDF válido.")
-    
-    try:
-        dados_puros = extrair_dados_pdf(arquivo_bytes)
-        dados_seguros = DadosProjetoSeguros(**dados_puros)
-        return dados_seguros
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro ao processar o PDF: {str(e)}")
+        arquivos_na_pasta = [f for f in os.listdir(pasta_alvo) if not f.startswith("~$")]
+        keywords_individuais = ["ch_dentro", "ch_fora", "conflito", "participante", "membro"]
 
-if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=8000)
-    # ==========================================
-# PILAR 3: GERAÇÃO DE DOCUMENTOS (EXCEL)
-# ==========================================
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
 
-@app.post("/gerar-excel/")
-async def gerar_plano_trabalho(dados: DadosProjetoSeguros):
-    try:
-        # ATENÇÃO: Coloque aqui o caminho exato de um modelo Excel seu para o teste
-        caminho_template = "Modelos/ACT/Seu_Modelo_ACT.xlsx" 
-        
-        wb = openpyxl.load_workbook(caminho_template)
-        ws = wb["Plano de Trabalho"] if "Plano de Trabalho" in wb.sheetnames else wb.worksheets[0]
-
-        # --- O SEU MOTOR DE AUTOAJUSTE DE CÉLULAS ---
-        def escrever_excel(celula, valor):
-            val_str = str(valor).strip() if valor is not None else ""
-            if val_str in ["", "-", "None", "Não se aplica"]: val_str = None
-            try:
-                r_row, r_col = coordinate_to_tuple(celula)
+            for arquivo in arquivos_na_pasta:
+                caminho_arquivo = os.path.join(pasta_alvo, arquivo)
                 
-                # Cálculo de altura de linha
-                if val_str and len(val_str) > 0:
-                    qtd_quebras = val_str.count('\n')
-                    linhas_estimadas = (len(val_str) / 110.0) + qtd_quebras
-                    if linhas_estimadas < 1: linhas_estimadas = 1
-                    altura_calculada = (linhas_estimadas * 15) + 10
-                    
-                    altura_atual = ws.row_dimensions[r_row].height
-                    if altura_atual is None or altura_calculada > altura_atual:
-                        ws.row_dimensions[r_row].height = altura_calculada
+                if arquivo.endswith(".docx"):
+                    nome_minusculo = arquivo.lower()
+                    is_individual = any(kw in nome_minusculo for kw in keywords_individuais)
 
-                # Tratamento de mesclagem
-                for merged_range in list(ws.merged_cells.ranges):
-                    min_col, min_row, max_col, max_row = merged_range.bounds
-                    if min_col <= r_col <= max_col and min_row <= r_row <= max_row:
-                        intervalo = str(merged_range)
-                        ws.unmerge_cells(intervalo)
-                        cel_alvo = ws.cell(row=min_row, column=min_col)
-                        cel_alvo.value = val_str
-                        cel_alvo.alignment = Alignment(wrap_text=True, vertical='top')
-                        ws.merge_cells(intervalo)
-                        return
-                        
-                cel_alvo = ws.cell(row=r_row, column=r_col)
-                cel_alvo.value = val_str
-                cel_alvo.alignment = Alignment(wrap_text=True, vertical='top')
-            except Exception as err:
-                print(f"Aviso na célula {celula}: {str(err)}")
+                    if is_individual:
+                        for membro in equipe_final:
+                            if not membro.get("Nome") or str(membro.get("Nome")).strip() == "": continue
+                            
+                            vinculo_membro = str(membro.get("Vínculo", "")).lower()
+                            funcao_membro = str(membro.get("Função", "")).lower()
+                            
+                            if "estudante" in vinculo_membro or "bolsista" in funcao_membro or "estagiário" in funcao_membro or "estagiario" in funcao_membro:
+                                continue 
 
-        # --- PREENCHENDO COM OS DADOS DA API ---
-        # Aqui nós pegamos o JSON validado (dados) e enviamos para a planilha
-        escrever_excel("C17", dados.titulo)
-        escrever_excel("C20", dados.coordenador)
-        escrever_excel("C27", dados.classificacao)
+                            ch_d_val = str(membro.get("CH_D", "0")).strip()
+                            ch_f_val = str(membro.get("CH_F", "0")).strip()
+
+                            if "ch_dentro" in nome_minusculo and ch_d_val in ["0", "0.0", "0,0", "-", ""]: continue
+                            if "ch_fora" in nome_minusculo and ch_f_val in ["0", "0.0", "0,0", "-", ""]: continue
+
+                            nome_limpo = re.sub(r'[^\w]', '_', str(membro.get("Nome")))[:40].strip('_')
+                            nome_doc_sem_ext = arquivo.replace(".docx", "")
+
+                            try:
+                                doc_ind = DocxTemplate(caminho_arquivo)
+                                ctx_membro = ctx_global.copy()
+                                ctx_membro.update(membro)
+                                
+                                # Alias à prova de falhas para Carga Horária e Conflito
+                                ctx_membro["participante"] = membro.get("Nome", "")
+                                ctx_membro["nome"] = membro.get("Nome", "")
+                                ctx_membro["Nome"] = membro.get("Nome", "")
+                                ctx_membro["siape"] = membro.get("SIAPE", "")
+                                ctx_membro["cargo"] = membro.get("Função", "")
+                                
+                                ctx_membro["ch_dentro"] = membro.get("CH_D", "0")
+                                ctx_membro["chdentro"] = membro.get("CH_D", "0")
+                                ctx_membro["ch_fora"] = membro.get("CH_F", "0")
+                                ctx_membro["chfora"] = membro.get("CH_F", "0")
+
+                                chefia_nome_val = str(membro.get("Chefia Imediata", ""))
+                                ctx_membro["chefia_imediata"] = chefia_nome_val
+                                ctx_membro["nome_chefia"] = chefia_nome_val
+                                ctx_membro["nomechefia"] = chefia_nome_val
+                                ctx_membro["chefia"] = chefia_nome_val
+                                ctx_membro["chefiaimediata"] = chefia_nome_val
+
+                                siape_chefia_val = str(membro.get("SIAPE Chefia", ""))
+                                ctx_membro["siape_chefia"] = siape_chefia_val
+                                ctx_membro["siapechefia"] = siape_chefia_val
+                                ctx_membro["siape_chefia_imediata"] = siape_chefia_val
+
+                                doc_ind.render(ctx_membro)
+                                doc_buffer_ind = io.BytesIO()
+                                doc_ind.save(doc_buffer_ind)
+                                zip_file.writestr(f"02_Documentos_Individuais/{nome_limpo}/{nome_limpo}_{nome_doc_sem_ext}.docx", doc_buffer_ind.getvalue())
+                            except Exception as e:
+                                print(f"Aviso DOCX IND {arquivo}: {str(e)}")
+                    else:
+                        try:
+                            doc = DocxTemplate(caminho_arquivo)
+                            doc.render(ctx_global)
+                            doc_buffer = io.BytesIO()
+                            doc.save(doc_buffer)
+                            zip_file.writestr(f"01_Documentos_Gerais/{arquivo}", doc_buffer.getvalue())
+                        except Exception as e:
+                            print(f"Aviso DOCX GERAL {arquivo}: {str(e)}")
+
+                elif arquivo.endswith(".xlsx"):
+                    try:
+                        wb = openpyxl.load_workbook(caminho_arquivo)
+                        ws = wb["Plano de Trabalho"] if "Plano de Trabalho" in wb.sheetnames else wb.worksheets[0]
+
+                        def escrever_excel(celula, valor):
+                            val_str = str(valor).strip() if valor is not None else ""
+                            if val_str in ["", "-", "None", "Não se aplica"]: val_str = None
+                            try:
+                                r_row, r_col = coordinate_to_tuple(celula)
+                                
+                                if val_str and len(val_str) > 0:
+                                    qtd_quebras = val_str.count('\n')
+                                    linhas_estimadas = (len(val_str) / 110.0) + qtd_quebras
+                                    if linhas_estimadas < 1: linhas_estimadas = 1
+                                    altura_calculada = (linhas_estimadas * 15) + 10
+                                    altura_atual = ws.row_dimensions[r_row].height
+                                    if altura_atual is None or altura_calculada > altura_atual:
+                                        ws.row_dimensions[r_row].height = altura_calculada
+
+                                for merged_range in list(ws.merged_cells.ranges):
+                                    min_col, min_row, max_col, max_row = merged_range.bounds
+                                    if min_col <= r_col <= max_col and min_row <= r_row <= max_row:
+                                        intervalo = str(merged_range)
+                                        ws.unmerge_cells(intervalo)
+                                        cel_alvo = ws.cell(row=min_row, column=min_col)
+                                        cel_alvo.value = val_str
+                                        cel_alvo.alignment = Alignment(wrap_text=True, vertical='top')
+                                        ws.merge_cells(intervalo)
+                                        return
+                                        
+                                cel_alvo = ws.cell(row=r_row, column=r_col)
+                                cel_alvo.value = val_str
+                                cel_alvo.alignment = Alignment(wrap_text=True, vertical='top')
+                            except Exception:
+                                pass
+
+                        nome_fiscal_excel = pess.fiscal if str(pess.fiscal).strip() != "" else "(Não possui)"
+                        nome_coord_adm_excel = pess.coord_adm if str(pess.coord_adm).strip() != "" else "(Não possui)"
+
+                        if d_proj.tipo_processo == "Acordo de Cooperação Técnica (ACT)":
+                            escrever_excel("C17", d_proj.titulo)
+                            escrever_excel("C19", d_proj.data_termino)
+                            escrever_excel("C20", pess.coordenador)
+                            escrever_excel("C21", pess.siape_coord)
+                            escrever_excel("C22", nome_fiscal_excel)
+                            escrever_excel("C23", pess.siape_fiscal)
+                            escrever_excel("C24", nome_coord_adm_excel)
+                            escrever_excel("C25", pess.siape_adm)
+                            escrever_excel("C26", d_proj.numero)
+                            escrever_excel("C27", d_proj.classificacao)
+                            escrever_excel("C28", d_proj.instrumento_juridico)
+                            escrever_excel("A32", d_proj.resumo)
+                            escrever_excel("A36", d_proj.objetivos)
+                            escrever_excel("A40", d_proj.justificativa)
+                            escrever_excel("A44", d_proj.resultados)
+                        else:
+                            escrever_excel("C28", d_proj.titulo)
+                            escrever_excel("C33", pess.coordenador)
+                            escrever_excel("C37", nome_fiscal_excel)
+                            escrever_excel("C39", nome_coord_adm_excel)
+                            escrever_excel("C41", d_proj.numero)
+                            escrever_excel("C42", texto_instrumento_completo)
+                            escrever_excel("A46", d_proj.resumo)
+                            escrever_excel("A50", d_proj.objetivos)
+                            escrever_excel("A54", d_proj.resultados)
+
+                        excel_buffer = io.BytesIO()
+                        wb.save(excel_buffer)
+                        zip_file.writestr(f"01_Documentos_Gerais/{arquivo}", excel_buffer.getvalue())
+                    except Exception as e:
+                        print(f"Erro no Excel: {str(e)}")
+
+            # === O SEGREDO ESTÁ NO RECUO DESSAS LINHAS ===
         
-        # (Opcional) Podemos fazer um loop para listar os nomes da equipe se houver um campo para isso
-        # escrever_excel("A50", dados.equipe[0].Nome se houver membros)
+        # Como essas linhas estão fora do "with zipfile", o Python fecha e salva o ZIP primeiro!
+        zip_buffer.seek(0)
+        nome_zip_saida = f"Documentos_Gerados_{fund_sigla}_{d_proj.numero or 'Projeto'}.zip"
 
-        # --- SALVANDO EM MEMÓRIA E ENVIANDO O DOWNLOAD ---
-        excel_buffer = io.BytesIO()
-        wb.save(excel_buffer)
-        excel_buffer.seek(0) # Volta o ponteiro da memória para o começo
-        
-        return StreamingResponse(
-            excel_buffer, 
-            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            headers={"Content-Disposition": "attachment; filename=Plano_de_Trabalho_Raichu.xlsx"}
+        return Response(
+            content=zip_buffer.getvalue(),
+            media_type="application/zip",
+            headers={"Content-Disposition": f"attachment; filename={nome_zip_saida}"}
         )
-        
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro crítico ao gerar o Excel: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erro crítico: {str(e)}")
