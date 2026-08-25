@@ -506,7 +506,7 @@ with aba_gerador:
 
             with st.spinner("⚡ O Raichu Pro está processando os documentos na API..."):
                 try:
-                    url_api = "http://192.168.104.160:8000/gerar-zip-completo/"
+                    url_api = "https://codautom.onrender.com/gerar-zip-completo/"
                     resposta = requests.post(url_api, json=payload)
                     
                     if resposta.status_code == 200:
