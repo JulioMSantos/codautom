@@ -124,7 +124,7 @@ aba_home, aba_gerador = st.tabs(["⚡ Início & Sobre", "🚀 Gerador de Documen
 # ==============================================================================
 with aba_home:
     st.markdown("<h1 style='color: #FF8C00;'>⚡ Bem-vindo ao Raichu Pro</h1>", unsafe_allow_html=True)
-    st.markdown("### Automatização Inteligente de Documentação de Projetos")
+    st.markdown("### Geração Inteligente de Documentação de Projetos")
     
     st.markdown("---")
     
