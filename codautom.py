@@ -15,72 +15,50 @@ import zipfile
 st.set_page_config(page_title="Raichu Pro", layout="wide", page_icon="⚡")
 
 # ==============================================================================
-# 🌟 TELA INICIAL (INTRODUÇÃO TEMATIZADA E ADAPTÁVEL) 🌟
+# 🌟 ARQUITETURA DE ABAS (TABS) - VISUAL PREMIUM 🌟
 # ==============================================================================
-if 'sistema_iniciado' not in st.session_state:
-    st.session_state.sistema_iniciado = False
+aba_inicio, aba_gerador = st.tabs(["⚡ Início & Sobre", "🚀 Gerador de Documentos"])
 
-if not st.session_state.sistema_iniciado:
-    # O CSS abaixo usa var(--secondary-background-color) e var(--text-color) 
-    # para se adaptar perfeitamente ao Modo Claro ou Escuro do usuário!
+with aba_inicio:
     st.markdown("""
-        <style>
-        .intro-box {
-            background-color: var(--secondary-background-color);
-            color: var(--text-color);
-            padding: 60px 40px;
-            border-radius: 20px;
-            text-align: center;
-            border: 2px solid var(--primary-color);
-            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
-            margin-top: 40px;
-            margin-bottom: 40px;
-        }
-        .intro-title {
-            font-size: 3.5em;
-            font-weight: 800;
-            margin-bottom: 10px;
-        }
-        .intro-subtitle {
-            font-size: 1.5em;
-            font-weight: 400;
-            opacity: 0.8;
-            margin-bottom: 30px;
-        }
-        .intro-text {
-            font-size: 1.2em;
-            line-height: 1.6;
-            max-width: 800px;
-            margin: 0 auto 40px auto;
-        }
-        </style>
-        
-        <div class="intro-box">
-            <div class="intro-title">⚡ Raichu Pro</div>
-            <div class="intro-subtitle">Automação Inteligente de Planos de Trabalho</div>
-            <div class="intro-text">
-                Bem-vindo ao sistema definitivo de processamento de projetos.<br><br>
-                O Raichu Pro foi projetado para ler relatórios complexos, identificar regras 
-                específicas de múltiplas fundações (FATEC, FAURGS, FUNDEP e FDMS) e gerar 
-                toda a documentação em Word e Excel de forma autônoma, protegida e segura.
-            </div>
+        <div style="margin-top: 20px; margin-bottom: 40px;">
+            <h1 style="font-size: 3em; font-weight: 800; display: flex; align-items: center; gap: 15px;">
+                ⚡ Bem-vindo ao Raichu Pro
+            </h1>
+            <h3 style="font-weight: 400; opacity: 0.8;">Geração Inteligente de Documentação de Projetos</h3>
         </div>
     """, unsafe_allow_html=True)
     
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        if st.button("🚀 ACESSAR O SISTEMA", type="primary", use_container_width=True):
-            st.session_state.sistema_iniciado = True
-            st.rerun()
-            
-    # O comando abaixo impede que o resto do código rode enquanto o usuário não clicar em "Acessar"
-    st.stop() 
+    col_main, col_side = st.columns([2.5, 1])
+    
+    with col_main:
+        # Cartão 1: Objetivo
+        st.info("### 🎯 Objetivo do Sistema\n\nO **Raichu Pro** foi desenvolvido para eliminar o trabalho manual e repetitivo na criação de documentação acadêmica e administrativa de projetos. Através da leitura inteligente de relatórios em PDF, o sistema extrai dados de títulos, equipes, resumos e prazos, gerando instantaneamente pacotes completos em formatos **Word (.docx)** e **Excel (.xlsx)** perfeitamente formatados.")
+        
+        st.markdown("### 📊 Opções de Instrumentos Jurídicos Suportados")
+        
+        # Cartões de Instrumentos
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            st.warning("**ACT**\n\n**Acordo de Cooperação Técnica**\n\nFoco em cooperações acadêmicas sem repasse financeiro direto ou fundações obrigatórias.")
+        with c2:
+            st.warning("**CG**\n\n**Contrato Global**\n\nGerenciamento integrado com fundações de apoio parceiras (FATEC, FUNDEP, etc.).")
+        with c3:
+            st.warning("**AP**\n\n**Acordo de Parceria**\n\nProjetos voltados à inovação, P&D e parcerias estratégicas institucionais.")
 
+    with col_side:
+        # Cartão Lateral: Informações
+        with st.container(border=True):
+            st.markdown("### ℹ️ Informações da Versão")
+            st.markdown("**Versão:** 3.0.0 (Integração Financeira Completa)")
+            st.markdown("**Desenvolvido por:** Julio Maia dos Santos - Estudante de graduação em Engenharia Elétrica 👨‍💻⚡")
+            st.markdown("**Arquitetura:** Python Nativo (Streamlit Cloud)")
+            st.divider()
+            st.caption("⚡ Sistema otimizado para alta performance e precisão em relatórios institucionais.")
 
 # ==============================================================================
-# O CÓDIGO PRINCIPAL DO RAICHU PRO COMEÇA AQUI
+# O CÓDIGO PRINCIPAL DO RAICHU PRO COMEÇA AQUI (DENTRO DA SEGUNDA ABA)
 # ==============================================================================
-
 # --- FUNÇÃO DE DATA ---
 def data_extenso(dt):
     meses = {1: "janeiro", 2: "fevereiro", 3: "março", 4: "abril", 5: "maio", 6: "junho",
