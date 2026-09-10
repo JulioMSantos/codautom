@@ -735,8 +735,8 @@ if arquivo_pdf:
                                 escrever_excel("A50", objetivos)
                                 escrever_excel("A54", resultados)
 
-                            # ==========================================================================
-                            # 🔥 INJEÇÃO DOS DADOS FINANCEIROS & BLINDAGEM DA PLANILHA (NOVO) 🔥
+                           # ==========================================================================
+                            # 🔥 INJEÇÃO DOS DADOS FINANCEIROS & BLINDAGEM DA PLANILHA (CORRIGIDO) 🔥
                             # ==========================================================================
                             if arquivo_financeiro:
                                 try:
@@ -750,12 +750,17 @@ if arquivo_pdf:
                                             if row[0] == "Nenhum item cadastrado" or not row[0]: continue
                                             for idx, col_excel in enumerate(cols_destino):
                                                 if idx < len(row):
-                                                    ws.cell(row=linha_atual, column=col_excel).value = row[idx]
+                                                    # Transforma o índice de coluna em letra (ex: 3 -> 'C')
+                                                    letra_coluna = openpyxl.utils.get_column_letter(col_excel)
+                                                    coordenada = f"{letra_coluna}{linha_atual}"
+                                                    # Usa a função segura que lida com células mescladas
+                                                    escrever_excel(coordenada, row[idx])
                                             linha_atual += 1
 
-                                    # Colunas: A(1)=Remun, C(3)=Nome, E(5)=SIAPE/Forma, G(7)=CPF, I(9)=CH, J(10)=NPag, K(11)=Valor
-                                    injetar_aba_dinamica("Equipe_Vinc", 117, [1, 3, 5, 7, 9, 10, 11])
-                                    injetar_aba_dinamica("Equipe_Nao_Vinc", 152, [1, 3, 5, 7, 9, 10, 11])
+                                    # Colunas: A(1)=Remun, C(3)=Nome, E(5)=SIAPE/Forma, G(7)=CPF, I(9)=CH, J(10)=NPag, L(12)=Valor
+                                    # ATENÇÃO: Ajustado a coluna do valor para L(12) conforme o modelo FATEC (Equipes)
+                                    injetar_aba_dinamica("Equipe_Vinc", 117, [1, 3, 5, 7, 9, 10, 12])
+                                    injetar_aba_dinamica("Equipe_Nao_Vinc", 152, [1, 3, 5, 7, 9, 10, 12])
                                     
                                     # Colunas: C(3)=Especif, G(7)=Qtd, I(9)=ValorUnit
                                     injetar_aba_dinamica("Anexo_1", 399, [3, 7, 9])
@@ -774,7 +779,8 @@ if arquivo_pdf:
                                             for col_idx in range(1, 6):
                                                 cell_txt = str(ws.cell(row=row_idx, column=col_idx).value).strip()
                                                 if cell_txt in valores_fixos:
-                                                    ws.cell(row=row_idx, column=11).value = valores_fixos[cell_txt] # Coluna K
+                                                    coordenada = f"K{row_idx}"
+                                                    escrever_excel(coordenada, valores_fixos[cell_txt])
                                                     break # Achou, pula pra próxima linha
                                                     
                                     # TRAVA DE SEGURANÇA (Senha invisível para proteger fórmulas)
