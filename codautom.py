@@ -11,6 +11,76 @@ from openpyxl.styles import Alignment
 import io
 import zipfile
 
+# --- CONFIGURAÇÃO DA PÁGINA ---
+st.set_page_config(page_title="Raichu Pro", layout="wide", page_icon="⚡")
+
+# ==============================================================================
+# 🌟 TELA INICIAL (INTRODUÇÃO TEMATIZADA E ADAPTÁVEL) 🌟
+# ==============================================================================
+if 'sistema_iniciado' not in st.session_state:
+    st.session_state.sistema_iniciado = False
+
+if not st.session_state.sistema_iniciado:
+    # O CSS abaixo usa var(--secondary-background-color) e var(--text-color) 
+    # para se adaptar perfeitamente ao Modo Claro ou Escuro do usuário!
+    st.markdown("""
+        <style>
+        .intro-box {
+            background-color: var(--secondary-background-color);
+            color: var(--text-color);
+            padding: 60px 40px;
+            border-radius: 20px;
+            text-align: center;
+            border: 2px solid var(--primary-color);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+            margin-top: 40px;
+            margin-bottom: 40px;
+        }
+        .intro-title {
+            font-size: 3.5em;
+            font-weight: 800;
+            margin-bottom: 10px;
+        }
+        .intro-subtitle {
+            font-size: 1.5em;
+            font-weight: 400;
+            opacity: 0.8;
+            margin-bottom: 30px;
+        }
+        .intro-text {
+            font-size: 1.2em;
+            line-height: 1.6;
+            max-width: 800px;
+            margin: 0 auto 40px auto;
+        }
+        </style>
+        
+        <div class="intro-box">
+            <div class="intro-title">⚡ Raichu Pro</div>
+            <div class="intro-subtitle">Automação Inteligente de Planos de Trabalho</div>
+            <div class="intro-text">
+                Bem-vindo ao sistema definitivo de processamento de projetos.<br><br>
+                O Raichu Pro foi projetado para ler relatórios complexos, identificar regras 
+                específicas de múltiplas fundações (FATEC, FAURGS, FUNDEP e FDMS) e gerar 
+                toda a documentação em Word e Excel de forma autônoma, protegida e segura.
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        if st.button("🚀 ACESSAR O SISTEMA", type="primary", use_container_width=True):
+            st.session_state.sistema_iniciado = True
+            st.rerun()
+            
+    # O comando abaixo impede que o resto do código rode enquanto o usuário não clicar em "Acessar"
+    st.stop() 
+
+
+# ==============================================================================
+# O CÓDIGO PRINCIPAL DO RAICHU PRO COMEÇA AQUI
+# ==============================================================================
+
 # --- FUNÇÃO DE DATA ---
 def data_extenso(dt):
     meses = {1: "janeiro", 2: "fevereiro", 3: "março", 4: "abril", 5: "maio", 6: "junho",
@@ -37,11 +107,11 @@ def limpar_texto_bloco(txt):
         return ""
     return txt_final.strip()
 
-# --- DETECÇÃO AUTOMÁTICA DO INSTRUMENTO JURÍDICO (COM SISTEMA DE PONTUAÇÃO) ---
+# --- DETECÇÃO AUTOMÁTICA DO INSTRUMENTO JURÍDICO (INTELIGENTE) ---
 def identificar_instrumento_juridico(texto):
     texto_low = (texto or "").lower()
 
-    # 1. Busca Direta no campo oficial (Peso Máximo)
+    # 1. Busca Direta
     m_instr = re.search(r'instrumento jur[íi]dico celebrado\s*:\s*(.*?)(?:\n|$)', texto_low)
     if m_instr:
         valor = m_instr.group(1).strip()
@@ -52,26 +122,15 @@ def identificar_instrumento_juridico(texto):
         if any(x in valor for x in ["cooperação", "cooperacao", "act"]):
             return "Acordo de Cooperação Técnica (ACT)"
 
-    # 2. Sistema de Pontuação (Scoring) para escanear o documento inteiro
-    score_cg = (
-        texto_low.count("contrato global") + 
-        texto_low.count("contrato de prestação") + 
-        texto_low.count("contrato de prestacao") + 
-        texto_low.count("prestação de serviço") +
-        texto_low.count("prestacao de servico")
-    )
+    # 2. Sistema de Pontuação (Scoring)
+    score_cg = (texto_low.count("contrato global") + texto_low.count("contrato de prestação") + 
+                texto_low.count("contrato de prestacao") + texto_low.count("prestação de serviço") +
+                texto_low.count("prestacao de servico"))
     
-    score_ap = (
-        texto_low.count("acordo de parceria") + 
-        texto_low.count("termo de parceria")
-    )
+    score_ap = (texto_low.count("acordo de parceria") + texto_low.count("termo de parceria"))
     
-    score_act = (
-        texto_low.count("acordo de cooperação") + 
-        texto_low.count("acordo de cooperacao") + 
-        texto_low.count("cooperação técnica") + 
-        texto_low.count("cooperacao tecnica")
-    )
+    score_act = (texto_low.count("acordo de cooperação") + texto_low.count("acordo de cooperacao") + 
+                 texto_low.count("cooperação técnica") + texto_low.count("cooperacao tecnica"))
 
     scores = {
         "Contrato Global (CG)": score_cg,
@@ -79,38 +138,23 @@ def identificar_instrumento_juridico(texto):
         "Acordo de Cooperação Técnica (ACT)": score_act
     }
 
-    # Verifica qual instrumento teve a maior pontuação no texto
     vencedor = max(scores, key=scores.get)
-    
-    # Se houver pelo menos 1 menção clara, retorna o vencedor. Se for zero, cai no padrão.
     if scores[vencedor] > 0:
         return vencedor
-
     return "Acordo de Cooperação Técnica (ACT)"
 
-# --- CONFIGURAÇÃO DA PÁGINA ---
-st.set_page_config(page_title="Raichu Pro", layout="wide")
 st.title("Raichu Pro ⚡ (Integração Financeira)")
 
-# --- ESTILIZAÇÃO CUSTOMIZADA (CSS) ---
 st.markdown(
     """
     <style>
-    div[data-testid="stRadio"] > label {
-        font-size: 20px !important;
-        font-weight: bold !important;
-    }
-    div[role="radiogroup"] p {
-        font-size: 18px !important;
-    }
+    div[data-testid="stRadio"] > label { font-size: 20px !important; font-weight: bold !important; }
+    div[role="radiogroup"] p { font-size: 18px !important; }
     </style>
     """,
     unsafe_allow_html=True
 )
 
-# ==============================================================================
-# PASSO 1: SELEÇÃO DO PROCESSO (PDF e EXCEL)
-# ==============================================================================
 st.markdown("### 1️⃣ Passo 1: Upload dos Arquivos")
 col_upload1, col_upload2 = st.columns(2)
 with col_upload1:
@@ -136,9 +180,6 @@ dados_extraidos = {
 
 texto_limpo = ""
 
-# ==============================================================================
-# MOTOR DE LEITURA DO PDF
-# ==============================================================================
 if arquivo_pdf:
     try:
         texto_completo = ""
@@ -459,7 +500,7 @@ if arquivo_pdf:
     st.markdown("### 3️⃣ Passo 3: Conferência e Edição de Dados")
 
     with st.expander("📝 Detalhes do Projeto e Textos Longos", expanded=True):
-        st.warning("⚠️ **ATENÇÃO:** O robô preencheu os dados automaticamente com base no PDF. Por favor, confira todos os campos abaixo. Se algum dado estiver incorreto ou faltando, você pode **corrigir ou preencher manualmente** nestas caixas antes de gerar os documentos.")
+        st.warning("⚠️ **ATENÇÃO:** O robô preencheu os dados automaticamente. Confira e edite abaixo.")
         c1, c2 = st.columns(2)
         with c1:
             tit_proj = st.text_input("Nome do Projeto (Título)", value=dados_extraidos.get("titulo", ""))
@@ -468,15 +509,13 @@ if arquivo_pdf:
             objetivos = st.text_area("Objetivos do Projeto", value=dados_extraidos.get("objetivos", ""), height=120)
             justificativa = st.text_area("Justificativa do Projeto", value=dados_extraidos.get("justificativa_proj", ""), height=120)
             importancia = st.text_area("Importância do Projeto", value=dados_extraidos.get("importancia_projeto", ""), height=80)
-            justificativa_fund = st.text_area("Justificativa para escolha da Fundação", placeholder="Digite o motivo da escolha da fundação...", height=80)
+            justificativa_fund = st.text_area("Justificativa para escolha da Fundação", placeholder="Digite o motivo da escolha...", height=80)
         with c2:
             diretor_unidade = st.text_input("Diretor da Unidade")
             siape_diretor = st.text_input("SIAPE do Diretor")
             st.text_input("Classificação", value=dados_extraidos.get("classificacao", ""), disabled=True)
             data_termino_edit = st.text_input("Data de Término", value=dados_extraidos.get("data_termino_proj", ""))
-            
             instrumento_juridico_edit = st.text_input("Instrumento Jurídico (Excel)", value=dados_extraidos.get("instrumento_juridico_pdf", ""))
-            
             resultados = st.text_area("Resultados Esperados", value=dados_extraidos.get("resultados", ""), height=120)
             metas = st.text_area("Metas do Projeto (Opcional)", placeholder="Digite as metas do projeto...", height=120)
 
@@ -496,20 +535,14 @@ if arquivo_pdf:
     st.markdown("---")
     st.subheader("🏢 Empresas / Parceiras")
     st.info("Digite manualmente na caixinha abaixo o nome da empresa. Ex: a FAURGS, o Banco do Brasil")
-    num_empresas = st.number_input("Quantas empresas/instituições parceiras participam deste projeto?", min_value=1, max_value=10, value=1)
+    num_empresas = st.number_input("Quantas empresas/instituições participam deste projeto?", min_value=1, max_value=10, value=1)
 
     nomes_empresas_validas = []
-    
-    # 🛑 BLOCO DE CÓDIGO CEGO E LIMPO (SEM CNPJ/ENDEREÇO) 🛑
     for i in range(num_empresas):
         key_emp = f"nome_empresa_simples_{i}"
-        
-        # Inicia a caixinha em branco ou com o valor do PDF
         if key_emp not in st.session_state:
             st.session_state[key_emp] = dados_extraidos.get("empresa", "") if i == 0 else ""
-            
         nome_emp = st.text_input(f"Nome da Empresa {i+1}", key=key_emp)
-        
         if nome_emp and nome_emp.strip() != "":
             nomes_empresas_validas.append(nome_emp.strip())
 
@@ -519,7 +552,7 @@ if arquivo_pdf:
     t1 = st.tabs(["👥 Equipe"])[0]
 
     with t1:
-        st.warning("⚠️ **AVISO IMPORTANTE:** Preencha as colunas **'Chefia Imediata'** e **'SIAPE Chefia'** para cada participante clicando duas vezes no espaço vazio. Isso é obrigatório para as declarações de Carga Horária.")
+        st.warning("⚠️ **AVISO:** Preencha as colunas 'Chefia Imediata' e 'SIAPE Chefia' para as declarações de Carga Horária.")
 
         equipe_final = dados_extraidos["equipe_raw"].copy()
         if f_nome and not any(e["SIAPE"] == f_siape for e in equipe_final):
@@ -531,16 +564,13 @@ if arquivo_pdf:
 
     st.markdown("---")
     st.markdown("### 4️⃣ Passo 4: Geração de Documentos")
-    st.write("Ao clicar no botão abaixo, o sistema irá preencher todos os documentos na nuvem e preparar um arquivo .ZIP para você baixar.")
+    st.write("Ao clicar no botão abaixo, o sistema irá preencher todos os documentos na nuvem e preparar um arquivo .ZIP.")
 
     if st.button("🚀 Processar Documentos"):
         with st.spinner("⏳ Processando e gerando os documentos... Por favor, aguarde!"):
             logs = []
             estudantes_ignorados_log = []
 
-            # ==========================================================================
-            # 🎯 LÓGICA DAS MÚLTIPLAS EMPRESAS (PARA O WORD)
-            # ==========================================================================
             if len(nomes_empresas_validas) == 0:
                 texto_empresas = ""
             elif len(nomes_empresas_validas) == 1:
@@ -549,23 +579,17 @@ if arquivo_pdf:
                 texto_empresas = f", {nomes_empresas_validas[0]} e {nomes_empresas_validas[1]}"
             else:
                 texto_empresas = ", " + ", ".join(nomes_empresas_validas[:-1]) + f" e {nomes_empresas_validas[-1]}"
-            # ==========================================================================
 
             base_instr = "Acordo de Cooperação Técnica"
-            if tipo_processo == "Acordo de Parceria (AP)":
-                base_instr = "Acordo de Parceria"
-            elif tipo_processo == "Contrato Global (CG)":
-                base_instr = "Contrato"
+            if tipo_processo == "Acordo de Parceria (AP)": base_instr = "Acordo de Parceria"
+            elif tipo_processo == "Contrato Global (CG)": base_instr = "Contrato"
 
             sufixo_classificacao = dados_extraidos.get("classificacao", "").strip()
             for c in dados_extraidos["classificacoes_raw"]:
                 if "caracterização das ações de extensão" in str(c.get("Tipo de Classificação", "")).lower():
                     val = str(c.get("Classificação", ""))
                     m_suf = re.search(r'[\d\.]+\s*-\s*(.*)', val)
-                    if m_suf:
-                        sufixo_classificacao = m_suf.group(1).strip()
-                    else:
-                        sufixo_classificacao = val.strip()
+                    sufixo_classificacao = m_suf.group(1).strip() if m_suf else val.strip()
                     break
             
             texto_instrumento_completo = f"{base_instr} com {sufixo_classificacao}" if sufixo_classificacao else base_instr
@@ -632,11 +656,8 @@ if arquivo_pdf:
                                     ch_d_val = str(membro.get("CH_D", "0")).strip()
                                     ch_f_val = str(membro.get("CH_F", "0")).strip()
 
-                                    if "ch_dentro" in nome_minusculo and ch_d_val in ["0", "0.0", "0,0", "-", ""]:
-                                        continue
-                                        
-                                    if "ch_fora" in nome_minusculo and ch_f_val in ["0", "0.0", "0,0", "-", ""]:
-                                        continue
+                                    if "ch_dentro" in nome_minusculo and ch_d_val in ["0", "0.0", "0,0", "-", ""]: continue
+                                    if "ch_fora" in nome_minusculo and ch_f_val in ["0", "0.0", "0,0", "-", ""]: continue
 
                                     nome_limpo = re.sub(r'[^\w]', '_', str(membro.get("Nome")))[:40].strip('_')
                                     nome_doc_sem_ext = arquivo.replace(".docx", "")
@@ -649,21 +670,12 @@ if arquivo_pdf:
                                         ctx_membro["siape"] = membro.get("SIAPE", "")
                                         ctx_membro["cargo"] = membro.get("Função", "")
                                         ctx_membro["ch_dentro"] = membro.get("CH_D", "0")
-                                        ctx_membro["chdentro"] = membro.get("CH_D", "0")
                                         ctx_membro["ch_fora"] = membro.get("CH_F", "0")
-                                        ctx_membro["chfora"] = membro.get("CH_F", "0")
 
                                         chefia_nome_val = str(membro.get("Chefia Imediata", ""))
                                         ctx_membro["chefia_imediata"] = chefia_nome_val
                                         ctx_membro["nome_chefia"] = chefia_nome_val
-                                        ctx_membro["nomechefia"] = chefia_nome_val
-                                        ctx_membro["chefia"] = chefia_nome_val
-                                        ctx_membro["chefiaimediata"] = chefia_nome_val
-                                        ctx_membro["nome_chefia_imediata"] = chefia_nome_val
-                                        ctx_membro["nomechefiaimediata"] = chefia_nome_val
-
                                         ctx_membro["siape_chefia"] = str(membro.get("SIAPE Chefia", ""))
-                                        ctx_membro["siapechefia"] = str(membro.get("SIAPE Chefia", ""))
                                         ctx_membro["siape_chefia_imediata"] = str(membro.get("SIAPE Chefia", ""))
 
                                         doc_ind.render(ctx_membro)
@@ -695,22 +707,14 @@ if arquivo_pdf:
                                 try:
                                     r_row, r_col = coordinate_to_tuple(celula)
                                     
-                                    # --- MOTOR DE AUTOAJUSTE DE ALTURA (V2.1) ---
                                     if val_str and len(val_str) > 0:
                                         qtd_quebras = val_str.count('\n')
-                                        # Calcula 1 linha a cada 110 letras + quebras de linha existentes
                                         linhas_estimadas = (len(val_str) / 110.0) + qtd_quebras
-                                        if linhas_estimadas < 1: 
-                                            linhas_estimadas = 1
-                                        
-                                        # Altura = (linhas * 15) + 10 de margem
+                                        if linhas_estimadas < 1: linhas_estimadas = 1
                                         altura_calculada = (linhas_estimadas * 15) + 10
-                                        
-                                        # Só redimensiona se a altura nova for maior que a atual padrão
                                         altura_atual = ws.row_dimensions[r_row].height
                                         if altura_atual is None or altura_calculada > altura_atual:
                                             ws.row_dimensions[r_row].height = altura_calculada
-                                    # --------------------------------------------
 
                                     for merged_range in list(ws.merged_cells.ranges):
                                         min_col, min_row, max_col, max_row = merged_range.bounds
@@ -754,7 +758,7 @@ if arquivo_pdf:
                                 escrever_excel("A44", resultados)
                             
                             elif fund_sigla == "FDMS":
-                                # Layout FDMS (Deslocado para baixo)
+                                # Layout FDMS 
                                 escrever_excel("C30", tit_proj)
                                 escrever_excel("C33", data_termino_edit)
                                 escrever_excel("C35", c_g_n)
@@ -801,7 +805,6 @@ if arquivo_pdf:
                                                     escrever_excel(coordenada, row[idx])
                                             linha_atual += 1
 
-                                    # 1. Define as linhas de início das tabelas dinâmicas
                                     if fund_sigla == "FDMS":
                                         linha_vinc, linha_nao_vinc, linha_anexo = 115, 150, 302
                                     else:
@@ -811,7 +814,6 @@ if arquivo_pdf:
                                     injetar_aba_dinamica("Equipe_Nao_Vinc", linha_nao_vinc, [1, 3, 5, 7, 9, 10, 12])
                                     injetar_aba_dinamica("Anexo_1", linha_anexo, [3, 7, 9])
                                     
-                                    # 2. Tabelas Fixas
                                     somas_categorias_fdms = {
                                         "4.2 - Diárias": 0, "4.3 - Serviços de Terceiros Pessoa Jurídica": 0,
                                         "4.4 - Serviços de Terceiros - Pessoa Física": 0, "4.5 - Passagens e Despesas de Locomoção": 0,
@@ -834,7 +836,6 @@ if arquivo_pdf:
                                             somas_categorias_fdms[mapa_abas[aba_fixa]] = soma_aba
 
                                     if fund_sigla == "FDMS":
-                                        # FDMS não tem lista de itens impressa. Injeta a soma direto na primeira linha em branco da categoria.
                                         for row_idx in range(180, 220):
                                             cat_txt = str(ws.cell(row=row_idx, column=1).value).strip()
                                             if cat_txt in somas_categorias_fdms and somas_categorias_fdms[cat_txt] > 0:
@@ -842,7 +843,6 @@ if arquivo_pdf:
                                                 escrever_excel(f"A{row_idx+1}", f"Total de {nome_limpo}")
                                                 escrever_excel(f"K{row_idx+1}", somas_categorias_fdms[cat_txt])
                                     else:
-                                        # FATEC, FAURGS, FUNDEP têm a lista completa impressa
                                         if valores_fixos:
                                             for row_idx in range(180, 350):
                                                 for col_idx in range(1, 6):
@@ -872,7 +872,7 @@ if arquivo_pdf:
                     if estudantes_ignorados_log:
                         st.info(f"🎓 **Filtro Automático:** O sistema bloqueou propositalmente a geração de documentos individuais (Carga Horária) para **{len(estudantes_ignorados_log)} estudante(s)/bolsista(s)**: {', '.join(estudantes_ignorados_log)}.")
                     
-                    st.warning("📝 **LEMBRETE:** Após baixar e descompactar o ZIP, todos os documentos estarão em **Word (.docx)** e **Excel (.xlsx)**. Pode abri-los e editar qualquer texto normalmente no seu computador.")
+                    st.warning("📝 **LEMBRETE:** Após baixar e descompactar o ZIP, todos os documentos estarão em Word e Excel. Pode abri-los e editar normalmente.")
 
                 st.session_state['zip_data'] = zip_buffer.getvalue()
                 st.session_state['zip_name'] = f"{nome_pasta_principal}.zip"
@@ -887,4 +887,4 @@ if arquivo_pdf:
         )
 
 st.markdown("<br><hr>", unsafe_allow_html=True)
-st.markdown("<div style='text-align: center; color: #888888; padding: 10px; font-size: 14px;'>⚡ <b>Raichu Pro V2.2.0 (Integração Financeira)</b> | Desenvolvido por Julio Maia 👨‍💻</div>", unsafe_allow_html=True)
+st.markdown("<div style='text-align: center; color: #888888; padding: 10px; font-size: 14px;'>⚡ <b>Raichu Pro V3.0 (Ecossistema Completo)</b> | Desenvolvido por Julio Maia 👨‍💻</div>", unsafe_allow_html=True)
