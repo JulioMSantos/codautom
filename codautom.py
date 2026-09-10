@@ -37,27 +37,54 @@ def limpar_texto_bloco(txt):
         return ""
     return txt_final.strip()
 
-# --- DETECÇÃO AUTOMÁTICA DO INSTRUMENTO JURÍDICO ---
+# --- DETECÇÃO AUTOMÁTICA DO INSTRUMENTO JURÍDICO (COM SISTEMA DE PONTUAÇÃO) ---
 def identificar_instrumento_juridico(texto):
-    texto = texto or ""
+    texto_low = (texto or "").lower()
 
-    m_instr = re.search(r'Instrumento jurídico celebrado\s*:\s*(.*?)(?:\n|$)', texto, re.IGNORECASE)
+    # 1. Busca Direta no campo oficial (Peso Máximo)
+    m_instr = re.search(r'instrumento jur[íi]dico celebrado\s*:\s*(.*?)(?:\n|$)', texto_low)
     if m_instr:
-        valor = m_instr.group(1).strip().lower()
-        if "acordo de cooperação técnica" in valor or "cooperação técnica" in valor or "cooperacao tecnica" in valor:
-            return "Acordo de Cooperação Técnica (ACT)"
-        if "contrato global" in valor:
+        valor = m_instr.group(1).strip()
+        if any(x in valor for x in ["contrato", "cg", "prestação", "prestacao"]):
             return "Contrato Global (CG)"
-        if "acordo de parceria" in valor or "parceria" in valor:
+        if any(x in valor for x in ["parceria", "ap"]):
             return "Acordo de Parceria (AP)"
+        if any(x in valor for x in ["cooperação", "cooperacao", "act"]):
+            return "Acordo de Cooperação Técnica (ACT)"
 
-    texto_low = texto.lower()
-    if "acordo de cooperação técnica" in texto_low or "cooperação técnica" in texto_low or "cooperacao tecnica" in texto_low:
-        return "Acordo de Cooperação Técnica (ACT)"
-    if "contrato global" in texto_low:
-        return "Contrato Global (CG)"
-    if "acordo de parceria" in texto_low or "parceria" in texto_low:
-        return "Acordo de Parceria (AP)"
+    # 2. Sistema de Pontuação (Scoring) para escanear o documento inteiro
+    score_cg = (
+        texto_low.count("contrato global") + 
+        texto_low.count("contrato de prestação") + 
+        texto_low.count("contrato de prestacao") + 
+        texto_low.count("prestação de serviço") +
+        texto_low.count("prestacao de servico")
+    )
+    
+    score_ap = (
+        texto_low.count("acordo de parceria") + 
+        texto_low.count("termo de parceria")
+    )
+    
+    score_act = (
+        texto_low.count("acordo de cooperação") + 
+        texto_low.count("acordo de cooperacao") + 
+        texto_low.count("cooperação técnica") + 
+        texto_low.count("cooperacao tecnica")
+    )
+
+    scores = {
+        "Contrato Global (CG)": score_cg,
+        "Acordo de Parceria (AP)": score_ap,
+        "Acordo de Cooperação Técnica (ACT)": score_act
+    }
+
+    # Verifica qual instrumento teve a maior pontuação no texto
+    vencedor = max(scores, key=scores.get)
+    
+    # Se houver pelo menos 1 menção clara, retorna o vencedor. Se for zero, cai no padrão.
+    if scores[vencedor] > 0:
+        return vencedor
 
     return "Acordo de Cooperação Técnica (ACT)"
 
@@ -705,6 +732,9 @@ if arquivo_pdf:
                             nome_fiscal_excel = f_nome if str(f_nome).strip() != "" else "(Não possui)"
                             nome_coord_adm_excel = nome_coord_adm if str(nome_coord_adm).strip() != "" else "(Não possui)"
 
+                            # ==========================================
+                            # 🔥 MAPEAMENTO DINÂMICO DE DADOS GERAIS 🔥
+                            # ==========================================
                             if tipo_processo == "Acordo de Cooperação Técnica (ACT)":
                                 escrever_excel("C17", tit_proj)
                                 escrever_excel("C19", data_termino_edit)
@@ -722,21 +752,37 @@ if arquivo_pdf:
                                 escrever_excel("A36", objetivos)
                                 escrever_excel("A40", justificativa)
                                 escrever_excel("A44", resultados)
-
+                            
+                            elif fund_sigla == "FDMS":
+                                # Layout FDMS (Deslocado para baixo)
+                                escrever_excel("C30", tit_proj)
+                                escrever_excel("C33", data_termino_edit)
+                                escrever_excel("C35", c_g_n)
+                                escrever_excel("C39", nome_fiscal_excel)
+                                escrever_excel("C41", nome_coord_adm_excel)
+                                escrever_excel("C43", n_proj)
+                                escrever_excel("C44", texto_instrumento_completo)
+                                
+                                escrever_excel("A48", objetivos)
+                                escrever_excel("A52", justificativa)
+                                escrever_excel("A56", resultados)
+                            
                             else:
+                                # Layout Padrão (FATEC, FAURGS, FUNDEP)
                                 escrever_excel("C28", tit_proj)
+                                escrever_excel("C31", data_termino_edit)
                                 escrever_excel("C33", c_g_n)
                                 escrever_excel("C37", nome_fiscal_excel)
                                 escrever_excel("C39", nome_coord_adm_excel)
                                 escrever_excel("C41", n_proj)
                                 escrever_excel("C42", texto_instrumento_completo)
                                 
-                                escrever_excel("A46", resumo)
-                                escrever_excel("A50", objetivos)
+                                escrever_excel("A46", objetivos)
+                                escrever_excel("A50", justificativa)
                                 escrever_excel("A54", resultados)
 
-                           # ==========================================================================
-                            # 🔥 INJEÇÃO DOS DADOS FINANCEIROS & BLINDAGEM DA PLANILHA (CORRIGIDO) 🔥
+                            # ==========================================================================
+                            # 🔥 INJEÇÃO DOS DADOS FINANCEIROS & BLINDAGEM DA PLANILHA 🔥
                             # ==========================================================================
                             if arquivo_financeiro:
                                 try:
@@ -750,40 +796,61 @@ if arquivo_pdf:
                                             if row[0] == "Nenhum item cadastrado" or not row[0]: continue
                                             for idx, col_excel in enumerate(cols_destino):
                                                 if idx < len(row):
-                                                    # Transforma o índice de coluna em letra (ex: 3 -> 'C')
                                                     letra_coluna = openpyxl.utils.get_column_letter(col_excel)
                                                     coordenada = f"{letra_coluna}{linha_atual}"
-                                                    # Usa a função segura que lida com células mescladas
                                                     escrever_excel(coordenada, row[idx])
                                             linha_atual += 1
 
-                                    # Colunas: A(1)=Remun, C(3)=Nome, E(5)=SIAPE/Forma, G(7)=CPF, I(9)=CH, J(10)=NPag, L(12)=Valor
-                                    # ATENÇÃO: Ajustado a coluna do valor para L(12) conforme o modelo FATEC (Equipes)
-                                    injetar_aba_dinamica("Equipe_Vinc", 117, [1, 3, 5, 7, 9, 10, 12])
-                                    injetar_aba_dinamica("Equipe_Nao_Vinc", 152, [1, 3, 5, 7, 9, 10, 12])
+                                    # 1. Define as linhas de início das tabelas dinâmicas
+                                    if fund_sigla == "FDMS":
+                                        linha_vinc, linha_nao_vinc, linha_anexo = 115, 150, 302
+                                    else:
+                                        linha_vinc, linha_nao_vinc, linha_anexo = 117, 152, 399
+
+                                    injetar_aba_dinamica("Equipe_Vinc", linha_vinc, [1, 3, 5, 7, 9, 10, 12])
+                                    injetar_aba_dinamica("Equipe_Nao_Vinc", linha_nao_vinc, [1, 3, 5, 7, 9, 10, 12])
+                                    injetar_aba_dinamica("Anexo_1", linha_anexo, [3, 7, 9])
                                     
-                                    # Colunas: C(3)=Especif, G(7)=Qtd, I(9)=ValorUnit
-                                    injetar_aba_dinamica("Anexo_1", 399, [3, 7, 9])
+                                    # 2. Tabelas Fixas
+                                    somas_categorias_fdms = {
+                                        "4.2 - Diárias": 0, "4.3 - Serviços de Terceiros Pessoa Jurídica": 0,
+                                        "4.4 - Serviços de Terceiros - Pessoa Física": 0, "4.5 - Passagens e Despesas de Locomoção": 0,
+                                        "4.6 - Material de Consumo": 0, "4.8 - Obras e Instalações": 0
+                                    }
+                                    mapa_abas = {
+                                        "Diarias": "4.2 - Diárias", "Servicos_PJ": "4.3 - Serviços de Terceiros Pessoa Jurídica",
+                                        "Servicos_PF": "4.4 - Serviços de Terceiros - Pessoa Física", "Passagens": "4.5 - Passagens e Despesas de Locomoção",
+                                        "Consumo": "4.6 - Material de Consumo", "Obras": "4.8 - Obras e Instalações"
+                                    }
                                     
-                                    # INJEÇÃO DAS TABELAS FIXAS (Busca pelo nome da categoria exata)
                                     valores_fixos = {}
-                                    for aba_fixa in ["Diarias", "Servicos_PJ", "Servicos_PF", "Passagens", "Consumo", "Obras"]:
+                                    for aba_fixa in mapa_abas.keys():
                                         if aba_fixa in wb_fin.sheetnames:
+                                            soma_aba = 0
                                             for row in wb_fin[aba_fixa].iter_rows(min_row=2, values_only=True):
                                                 if row[0] and str(row[0]) != "Nenhum item preenchido":
                                                     valores_fixos[str(row[0]).strip()] = row[1]
+                                                    soma_aba += row[1]
+                                            somas_categorias_fdms[mapa_abas[aba_fixa]] = soma_aba
 
-                                    if valores_fixos:
-                                        # Varre as linhas 180 até 350 procurando os nomes nas colunas A até E
-                                        for row_idx in range(180, 350):
-                                            for col_idx in range(1, 6):
-                                                cell_txt = str(ws.cell(row=row_idx, column=col_idx).value).strip()
-                                                if cell_txt in valores_fixos:
-                                                    coordenada = f"K{row_idx}"
-                                                    escrever_excel(coordenada, valores_fixos[cell_txt])
-                                                    break # Achou, pula pra próxima linha
+                                    if fund_sigla == "FDMS":
+                                        # FDMS não tem lista de itens impressa. Injeta a soma direto na primeira linha em branco da categoria.
+                                        for row_idx in range(180, 220):
+                                            cat_txt = str(ws.cell(row=row_idx, column=1).value).strip()
+                                            if cat_txt in somas_categorias_fdms and somas_categorias_fdms[cat_txt] > 0:
+                                                nome_limpo = cat_txt.split('-')[1].strip() if '-' in cat_txt else cat_txt
+                                                escrever_excel(f"A{row_idx+1}", f"Total de {nome_limpo}")
+                                                escrever_excel(f"K{row_idx+1}", somas_categorias_fdms[cat_txt])
+                                    else:
+                                        # FATEC, FAURGS, FUNDEP têm a lista completa impressa
+                                        if valores_fixos:
+                                            for row_idx in range(180, 350):
+                                                for col_idx in range(1, 6):
+                                                    cell_txt = str(ws.cell(row=row_idx, column=col_idx).value).strip()
+                                                    if cell_txt in valores_fixos:
+                                                        escrever_excel(f"K{row_idx}", valores_fixos[cell_txt])
+                                                        break 
                                                     
-                                    # TRAVA DE SEGURANÇA (Senha invisível para proteger fórmulas)
                                     ws.protection.sheet = True
                                     ws.protection.set_password("ufsm2026")
                                     
