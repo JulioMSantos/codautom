@@ -63,7 +63,7 @@ def identificar_instrumento_juridico(texto):
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="Raichu Pro", layout="wide")
-st.title("Raichu Pro ⚡ (Versão Atualizada)")
+st.title("Raichu Pro ⚡ (Integração Financeira)")
 
 # --- ESTILIZAÇÃO CUSTOMIZADA (CSS) ---
 st.markdown(
@@ -82,10 +82,14 @@ st.markdown(
 )
 
 # ==============================================================================
-# PASSO 1: SELEÇÃO DO PROCESSO
+# PASSO 1: SELEÇÃO DO PROCESSO (PDF e EXCEL)
 # ==============================================================================
-st.markdown("### 1️⃣ Passo 1: Seleção do Processo e Relatório")
-arquivo_pdf = st.file_uploader("Insira o seu relatório do projeto", type=["pdf"])
+st.markdown("### 1️⃣ Passo 1: Upload dos Arquivos")
+col_upload1, col_upload2 = st.columns(2)
+with col_upload1:
+    arquivo_pdf = st.file_uploader("1. Insira o Relatório do Projeto (.PDF)", type=["pdf"])
+with col_upload2:
+    arquivo_financeiro = st.file_uploader("2. Insira os Dados Financeiros (.XLSX) (Opcional)", type=["xlsx"])
 
 fundacoes_dados = {
     "FATEC": {"fundacao": "FATEC - Fundação de Apoio à Tecnologia e Ciência", "sigla_fundacao": "FATEC"},
@@ -731,6 +735,55 @@ if arquivo_pdf:
                                 escrever_excel("A50", objetivos)
                                 escrever_excel("A54", resultados)
 
+                            # ==========================================================================
+                            # 🔥 INJEÇÃO DOS DADOS FINANCEIROS & BLINDAGEM DA PLANILHA (NOVO) 🔥
+                            # ==========================================================================
+                            if arquivo_financeiro:
+                                try:
+                                    wb_fin = openpyxl.load_workbook(arquivo_financeiro, data_only=True)
+                                    
+                                    def injetar_aba_dinamica(nome_aba, linha_inicio, cols_destino):
+                                        if nome_aba not in wb_fin.sheetnames: return
+                                        ws_fin = wb_fin[nome_aba]
+                                        linha_atual = linha_inicio
+                                        for row in ws_fin.iter_rows(min_row=2, values_only=True):
+                                            if row[0] == "Nenhum item cadastrado" or not row[0]: continue
+                                            for idx, col_excel in enumerate(cols_destino):
+                                                if idx < len(row):
+                                                    ws.cell(row=linha_atual, column=col_excel).value = row[idx]
+                                            linha_atual += 1
+
+                                    # Colunas: A(1)=Remun, C(3)=Nome, E(5)=SIAPE/Forma, G(7)=CPF, I(9)=CH, J(10)=NPag, K(11)=Valor
+                                    injetar_aba_dinamica("Equipe_Vinc", 117, [1, 3, 5, 7, 9, 10, 11])
+                                    injetar_aba_dinamica("Equipe_Nao_Vinc", 152, [1, 3, 5, 7, 9, 10, 11])
+                                    
+                                    # Colunas: C(3)=Especif, G(7)=Qtd, I(9)=ValorUnit
+                                    injetar_aba_dinamica("Anexo_1", 399, [3, 7, 9])
+                                    
+                                    # INJEÇÃO DAS TABELAS FIXAS (Busca pelo nome da categoria exata)
+                                    valores_fixos = {}
+                                    for aba_fixa in ["Diarias", "Servicos_PJ", "Servicos_PF", "Passagens", "Consumo", "Obras"]:
+                                        if aba_fixa in wb_fin.sheetnames:
+                                            for row in wb_fin[aba_fixa].iter_rows(min_row=2, values_only=True):
+                                                if row[0] and str(row[0]) != "Nenhum item preenchido":
+                                                    valores_fixos[str(row[0]).strip()] = row[1]
+
+                                    if valores_fixos:
+                                        # Varre as linhas 180 até 350 procurando os nomes nas colunas A até E
+                                        for row_idx in range(180, 350):
+                                            for col_idx in range(1, 6):
+                                                cell_txt = str(ws.cell(row=row_idx, column=col_idx).value).strip()
+                                                if cell_txt in valores_fixos:
+                                                    ws.cell(row=row_idx, column=11).value = valores_fixos[cell_txt] # Coluna K
+                                                    break # Achou, pula pra próxima linha
+                                                    
+                                    # TRAVA DE SEGURANÇA (Senha invisível para proteger fórmulas)
+                                    ws.protection.sheet = True
+                                    ws.protection.set_password("ufsm2026")
+                                    
+                                except Exception as err:
+                                    logs.append(f"❌ Erro ao ler/injetar Dados Financeiros: {str(err)}")
+
                             excel_buffer = io.BytesIO()
                             wb.save(excel_buffer)
                             zip_file.writestr(f"01_Documentos_Gerais/{arq_excel}", excel_buffer.getvalue())
@@ -761,4 +814,4 @@ if arquivo_pdf:
         )
 
 st.markdown("<br><hr>", unsafe_allow_html=True)
-st.markdown("<div style='text-align: center; color: #888888; padding: 10px; font-size: 14px;'>⚡ <b>Raichu Pro V2.1.0</b> | Desenvolvido por Julio Maia 👨‍💻</div>", unsafe_allow_html=True)
+st.markdown("<div style='text-align: center; color: #888888; padding: 10px; font-size: 14px;'>⚡ <b>Raichu Pro V2.2.0 (Integração Financeira)</b> | Desenvolvido por Julio Maia 👨‍💻</div>", unsafe_allow_html=True)
