@@ -263,6 +263,7 @@ with aba_gerador:
             if not bloco_participantes:
                 bloco_participantes = texto_limpo
 
+            # LÓGICA ATUALIZADA: CAPTURA O NOME E O SIAPE (GRUPO 1) DIRETAMENTE
             matches_participantes = list(re.finditer(r'(\d{5,15})\s*-\s*([A-ZÀ-Ÿ\s\']+?)\s*(?=[A-ZÀ-Ÿ][a-zà-ÿ]|UNIDADES VINCULADAS|CLASSIFICAÇÕES|$)', bloco_participantes))
             
             for i, match in enumerate(matches_participantes):
@@ -761,8 +762,17 @@ with aba_gerador:
                                     try:
                                         wb_fin = openpyxl.load_workbook(arquivo_financeiro, data_only=True)
                                         
+                                        # --- SCANNER INTELIGENTE DE LINHAS ---
+                                        def encontrar_linha(planilha, texto_busca, min_row, max_row, cols=[1, 2, 3, 7, 8]):
+                                            for r in range(min_row, max_row):
+                                                for c in cols:
+                                                    val = str(planilha.cell(row=r, column=c).value).strip()
+                                                    if texto_busca.lower() in val.lower():
+                                                        return r
+                                            return None
+
                                         def injetar_aba_dinamica(nome_aba, linha_inicio, cols_destino):
-                                            if nome_aba not in wb_fin.sheetnames: return
+                                            if nome_aba not in wb_fin.sheetnames or not linha_inicio: return
                                             ws_fin = wb_fin[nome_aba]
                                             linha_atual = linha_inicio
                                             for row in ws_fin.iter_rows(min_row=2, values_only=True):
@@ -774,16 +784,25 @@ with aba_gerador:
                                                         escrever_excel(coordenada, row[idx])
                                                 linha_atual += 1
 
-                                        if fund_sigla == "FDMS":
-                                            linha_vinc, linha_nao_vinc, linha_anexo = 115, 150, 302
-                                        else:
-                                            linha_vinc, linha_nao_vinc, linha_anexo = 117, 152, 399
+                                        # 1. Encontra o início das Equipes e Anexos dinamicamente
+                                        linha_vinc_busca = encontrar_linha(ws, "TIPO DE REMUNERAÇÃO", 100, 160)
+                                        linha_vinc = linha_vinc_busca + 2 if linha_vinc_busca else (115 if fund_sigla in ["FDMS", "FATEC"] else 117)
 
-                                        injetar_aba_dinamica("Equipe_Vinc", linha_vinc, [1, 3, 5, 7, 9, 10, 12])
-                                        injetar_aba_dinamica("Equipe_Nao_Vinc", linha_nao_vinc, [1, 3, 5, 7, 9, 10, 12])
-                                        injetar_aba_dinamica("Anexo_1", linha_anexo, [3, 7, 9])
+                                        linha_nao_vinc_busca = encontrar_linha(ws, "FORMA DE CONTRATAÇÃO", 130, 200)
+                                        linha_nao_vinc = linha_nao_vinc_busca + 2 if linha_nao_vinc_busca else (150 if fund_sigla in ["FDMS", "FATEC"] else 152)
+
+                                        linha_anexo_busca = encontrar_linha(ws, "ESPECIFICAÇÃO", 280, 450)
+                                        linha_anexo = linha_anexo_busca + 1 if linha_anexo_busca else (300 if fund_sigla in ["FDMS", "FATEC"] else 399)
+
+                                        cols_equipe = [1, 3, 5, 7, 9, 10, 12]
+                                        cols_anexo = [3, 8, 10] if fund_sigla in ["FDMS", "FATEC"] else [3, 7, 9]
+
+                                        injetar_aba_dinamica("Equipe_Vinc", linha_vinc, cols_equipe)
+                                        injetar_aba_dinamica("Equipe_Nao_Vinc", linha_nao_vinc, cols_equipe)
+                                        injetar_aba_dinamica("Anexo_1", linha_anexo, cols_anexo)
                                         
-                                        somas_categorias_fdms = {
+                                        # 2. Processa Tabelas Fixas (Despesas)
+                                        somas_categorias = {
                                             "4.2 - Diárias": 0, "4.3 - Serviços de Terceiros Pessoa Jurídica": 0,
                                             "4.4 - Serviços de Terceiros - Pessoa Física": 0, "4.5 - Passagens e Despesas de Locomoção": 0,
                                             "4.6 - Material de Consumo": 0, "4.8 - Obras e Instalações": 0
@@ -795,65 +814,125 @@ with aba_gerador:
                                         }
                                         
                                         valores_fixos = {}
-                                        for aba_fixa in mapa_abas.keys():
+                                        for aba_fixa, nome_cat in mapa_abas.items():
                                             if aba_fixa in wb_fin.sheetnames:
                                                 soma_aba = 0
                                                 for row in wb_fin[aba_fixa].iter_rows(min_row=2, values_only=True):
                                                     if row[0] and str(row[0]) != "Nenhum item preenchido":
                                                         valores_fixos[str(row[0]).strip()] = row[1]
                                                         soma_aba += row[1]
-                                                somas_categorias_fdms[mapa_abas[aba_fixa]] = soma_aba
+                                                somas_categorias[nome_cat] = soma_aba
 
-                                        if fund_sigla == "FDMS":
-                                            for row_idx in range(180, 220):
-                                                cat_txt = str(ws.cell(row=row_idx, column=1).value).strip()
-                                                if cat_txt in somas_categorias_fdms and somas_categorias_fdms[cat_txt] > 0:
-                                                    nome_limpo = cat_txt.split('-')[1].strip() if '-' in cat_txt else cat_txt
-                                                    escrever_excel(f"A{row_idx+1}", f"Total de {nome_limpo}")
-                                                    escrever_excel(f"K{row_idx+1}", somas_categorias_fdms[cat_txt])
-                                        else:
-                                            if valores_fixos:
-                                                for row_idx in range(180, 350):
-                                                    for col_idx in range(1, 6):
-                                                        cell_txt = str(ws.cell(row=row_idx, column=col_idx).value).strip()
-                                                        if cell_txt in valores_fixos:
-                                                            escrever_excel(f"K{row_idx}", valores_fixos[cell_txt])
-                                                            break 
+                                        # Injeta Somas nos cabeçalhos (Novo Padrão FATEC/FDMS)
+                                        for cat_name, soma_val in somas_categorias.items():
+                                            if soma_val > 0:
+                                                linha_cat = encontrar_linha(ws, cat_name, 150, 250)
+                                                if linha_cat: escrever_excel(f"K{linha_cat}", soma_val)
+
+                                        # Injeta Itens Detalhados se houver espaço
+                                        if valores_fixos:
+                                            for row_idx in range(180, 350):
+                                                for col_idx in range(1, 6):
+                                                    cell_txt = str(ws.cell(row=row_idx, column=col_idx).value).strip()
+                                                    if cell_txt in valores_fixos:
+                                                        escrever_excel(f"K{row_idx}", valores_fixos[cell_txt])
+                                                        break 
+                                                            
+                                        # =========================================================
+                                        # 3. NOVAS SEÇÕES DINÂMICAS: FONTES (3.1), APLICAÇÃO (4) E CRONOGRAMA (6)
+                                        # =========================================================
+                                        
+                                        tipo_crono = "Mensal"
+                                        if "Config_Raichu" in wb_fin.sheetnames:
+                                            for row in wb_fin["Config_Raichu"].iter_rows(values_only=True):
+                                                if row[0] == "Cronograma_Tipo": tipo_crono = row[1]
+                                        
+                                        # Seção 3.1 - FONTES
+                                        if "Fontes_3.1" in wb_fin.sheetnames:
+                                            for row in wb_fin["Fontes_3.1"].iter_rows(min_row=2, values_only=True):
+                                                fonte, check, tit_f, reg_f = row[0], row[1], row[2], row[3]
+                                                if check == "X":
+                                                    linha_f = encontrar_linha(ws, fonte[:30], 60, 100) 
+                                                    if linha_f:
+                                                        escrever_excel(f"K{linha_f}", "X")
+                                                        if "prestação de serviços abaixo" in fonte and tit_f:
+                                                            linha_txt_f = encontrar_linha(ws, "(Informe o título", linha_f, linha_f+4)
+                                                            if linha_txt_f: escrever_excel(f"A{linha_txt_f}", f"Título: {tit_f} - Registro: {reg_f}")
+                                                            
+                                        # Seção 4 - PLANO DE APLICAÇÃO
+                                        if "Aplicacao_4" in wb_fin.sheetnames:
+                                            row_app = list(wb_fin["Aplicacao_4"].iter_rows(min_row=2, values_only=True))[0]
+                                            if row_app[0] == "Sim":
+                                                linha_app = encontrar_linha(ws, "Investimento em projeto de Pesquisa", 90, 130)
+                                                if linha_app:
+                                                    escrever_excel(f"K{linha_app}", "X")
+                                                    linha_txt_app = encontrar_linha(ws, "(Informe o título", linha_app, linha_app+4)
+                                                    if linha_txt_app: escrever_excel(f"A{linha_txt_app}", f"Título: {row_app[1]} - Registro: {row_app[2]}")
+                                                
+                                        # Seção 6 - CRONOGRAMA DE DESEMBOLSO
+                                        if "Cronograma_6" in wb_fin.sheetnames:
+                                            valores_crono = [r[1] for r in wb_fin["Cronograma_6"].iter_rows(min_row=2, values_only=True)]
+                                            linha_base_crono = encontrar_linha(ws, "6 - CRONOGRAMA", 200, 450)
+                                            
+                                            if linha_base_crono:
+                                                if tipo_crono == "Mensal":
+                                                    linha_ini = encontrar_linha(ws, "1.0", linha_base_crono, linha_base_crono+15, cols=[2])
+                                                    if not linha_ini: linha_ini = encontrar_linha(ws, "1", linha_base_crono, linha_base_crono+15, cols=[2])
+                                                    if not linha_ini: linha_ini = 265
+                                                    
+                                                    for i, val in enumerate(valores_crono):
+                                                        if i < 30: escrever_excel(f"C{linha_ini + i}", val)
+                                                        elif i < 60: escrever_excel(f"E{linha_ini + (i - 30)}", val)
                                                         
+                                                elif tipo_crono == "Semestral":
+                                                    linha_sem_1 = encontrar_linha(ws, "1º Semestre", linha_base_crono, linha_base_crono+20, cols=[8])
+                                                    if linha_sem_1:
+                                                        linhas_sem = [linha_sem_1, linha_sem_1+1, linha_sem_1+4, linha_sem_1+5, linha_sem_1+8, linha_sem_1+9, linha_sem_1+12, linha_sem_1+13, linha_sem_1+16, linha_sem_1+17]
+                                                        for i, val in enumerate(valores_crono):
+                                                            if i < len(linhas_sem): escrever_excel(f"J{linhas_sem[i]}", val)
+                                                            
+                                                elif tipo_crono == "Anual":
+                                                    linha_ano_1 = encontrar_linha(ws, "ANO 1", linha_base_crono, linha_base_crono+40, cols=[7, 8])
+                                                    if linha_ano_1:
+                                                        for i, val in enumerate(valores_crono):
+                                                            if i < 5: escrever_excel(f"I{linha_ano_1 + i}", val)
+
+                                        # =========================================================
+
                                         ws.protection.sheet = True
                                         ws.protection.set_password("ufsm2026")
                                         
                                     except Exception as err:
                                         logs.append(f"❌ Erro ao ler/injetar Dados Financeiros: {str(err)}")
 
-                                excel_buffer = io.BytesIO()
-                                wb.save(excel_buffer)
-                                zip_file.writestr(f"01_Documentos_Gerais/{arq_excel}", excel_buffer.getvalue())
-                            except Exception as e:
-                                logs.append(f"❌ Erro crítico no Excel Mestre: {str(e)}")
+                            excel_buffer = io.BytesIO()
+                            wb.save(excel_buffer)
+                            zip_file.writestr(f"01_Documentos_Gerais/{arq_excel}", excel_buffer.getvalue())
+                        except Exception as e:
+                            logs.append(f"❌ Erro crítico no Excel Mestre: {str(e)}")
 
-                    if logs:
-                        st.warning("⚠️ Foram gerados arquivos, mas ocorreram alguns avisos:")
-                        for l in logs: st.error(l)
-                    else:
-                        st.success("🔥 Documentos gerados e empacotados com Sucesso Absoluto!")
-                        
-                        if estudantes_ignorados_log:
-                            st.info(f"🎓 **Filtro Automático:** O sistema bloqueou propositalmente a geração de documentos individuais (Carga Horária) para **{len(estudantes_ignorados_log)} estudante(s)/bolsista(s)**: {', '.join(estudantes_ignorados_log)}.")
-                        
-                        st.warning("📝 **LEMBRETE:** Após baixar e descompactar o ZIP, todos os documentos estarão em Word e Excel. Pode abri-los e editar normalmente.")
+                if logs:
+                    st.warning("⚠️ Foram gerados arquivos, mas ocorreram alguns avisos:")
+                    for l in logs: st.error(l)
+                else:
+                    st.success("🔥 Documentos gerados e empacotados com Sucesso Absoluto!")
+                    
+                    if estudantes_ignorados_log:
+                        st.info(f"🎓 **Filtro Automático:** O sistema bloqueou propositalmente a geração de documentos individuais (Carga Horária) para **{len(estudantes_ignorados_log)} estudante(s)/bolsista(s)**: {', '.join(estudantes_ignorados_log)}.")
+                    
+                    st.warning("📝 **LEMBRETE:** Após baixar e descompactar o ZIP, todos os documentos estarão em Word e Excel. Pode abri-los e editar normalmente.")
 
-                    st.session_state['zip_data'] = zip_buffer.getvalue()
-                    st.session_state['zip_name'] = f"{nome_pasta_principal}.zip"
+                st.session_state['zip_data'] = zip_buffer.getvalue()
+                st.session_state['zip_name'] = f"{nome_pasta_principal}.zip"
 
-        if 'zip_data' in st.session_state:
-            st.download_button(
-                label="⬇️ CLIQUE AQUI PARA BAIXAR OS DOCUMENTOS (.ZIP)",
-                data=st.session_state['zip_data'],
-                file_name=st.session_state['zip_name'],
-                mime="application/zip",
-                type="primary"
-            )
+    if 'zip_data' in st.session_state:
+        st.download_button(
+            label="⬇️ CLIQUE AQUI PARA BAIXAR OS DOCUMENTOS (.ZIP)",
+            data=st.session_state['zip_data'],
+            file_name=st.session_state['zip_name'],
+            mime="application/zip",
+            type="primary"
+        )
 
-    st.markdown("<br><hr>", unsafe_allow_html=True)
-    st.markdown("<div style='text-align: center; color: #888888; padding: 10px; font-size: 14px;'>⚡ <b>Raichu Pro V3.0 (Ecossistema Completo)</b> | Desenvolvido por Julio Maia 👨‍💻</div>", unsafe_allow_html=True)
+st.markdown("<br><hr>", unsafe_allow_html=True)
+st.markdown("<div style='text-align: center; color: #888888; padding: 10px; font-size: 14px;'>⚡ <b>Raichu Pro V3.0 (Ecossistema Completo)</b> | Desenvolvido por Julio Maia 👨‍💻</div>", unsafe_allow_html=True)
