@@ -263,7 +263,6 @@ with aba_gerador:
             if not bloco_participantes:
                 bloco_participantes = texto_limpo
 
-            # LÓGICA ATUALIZADA: CAPTURA O NOME E O SIAPE (GRUPO 1) DIRETAMENTE
             matches_participantes = list(re.finditer(r'(\d{5,15})\s*-\s*([A-ZÀ-Ÿ\s\']+?)\s*(?=[A-ZÀ-Ÿ][a-zà-ÿ]|UNIDADES VINCULADAS|CLASSIFICAÇÕES|$)', bloco_participantes))
             
             for i, match in enumerate(matches_participantes):
@@ -905,11 +904,12 @@ with aba_gerador:
                                     except Exception as err:
                                         logs.append(f"❌ Erro ao ler/injetar Dados Financeiros: {str(err)}")
 
-                            excel_buffer = io.BytesIO()
-                            wb.save(excel_buffer)
-                            zip_file.writestr(f"01_Documentos_Gerais/{arq_excel}", excel_buffer.getvalue())
-                        except Exception as e:
-                            logs.append(f"❌ Erro crítico no Excel Mestre: {str(e)}")
+                                excel_buffer = io.BytesIO()
+                                wb.save(excel_buffer)
+                                zip_file.writestr(f"01_Documentos_Gerais/{arq_excel}", excel_buffer.getvalue())
+
+                            except Exception as e:
+                                logs.append(f"❌ Erro crítico no Excel Mestre: {str(e)}")
 
                 if logs:
                     st.warning("⚠️ Foram gerados arquivos, mas ocorreram alguns avisos:")
