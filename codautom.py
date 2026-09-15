@@ -263,6 +263,7 @@ with aba_gerador:
             if not bloco_participantes:
                 bloco_participantes = texto_limpo
 
+            # Leitura conjunta do SIAPE e Nome
             matches_participantes = list(re.finditer(r'(\d{5,15})\s*-\s*([A-ZÀ-Ÿ\s\']+?)\s*(?=[A-ZÀ-Ÿ][a-zà-ÿ]|UNIDADES VINCULADAS|CLASSIFICAÇÕES|$)', bloco_participantes))
             
             for i, match in enumerate(matches_participantes):
@@ -783,6 +784,14 @@ with aba_gerador:
                                                         escrever_excel(coordenada, row[idx])
                                                 linha_atual += 1
 
+                                        # Lendo a configuração geral do financeiro
+                                        tipo_crono = "Mensal"
+                                        total_geral_projeto = 0
+                                        if "Config_Raichu" in wb_fin.sheetnames:
+                                            for row in wb_fin["Config_Raichu"].iter_rows(values_only=True):
+                                                if row[0] == "Cronograma_Tipo": tipo_crono = row[1]
+                                                if row[0] == "Total_Geral": total_geral_projeto = row[1]
+
                                         # 1. Encontra o início das Equipes e Anexos dinamicamente
                                         linha_vinc_busca = encontrar_linha(ws, "TIPO DE REMUNERAÇÃO", 100, 160)
                                         linha_vinc = linha_vinc_busca + 2 if linha_vinc_busca else (115 if fund_sigla in ["FDMS", "FATEC"] else 117)
@@ -793,7 +802,7 @@ with aba_gerador:
                                         linha_anexo_busca = encontrar_linha(ws, "ESPECIFICAÇÃO", 280, 450)
                                         linha_anexo = linha_anexo_busca + 1 if linha_anexo_busca else (300 if fund_sigla in ["FDMS", "FATEC"] else 399)
 
-                                        # COLUNAS CORRIGIDAS PARA EQUIPE: [Tipo, Nome, Siape, CPF, Carga, NPagtos, Vlr_Parcela, Vlr_Total]
+                                        # COLUNAS CORRIGIDAS PARA EQUIPE (Pula vazias e acerta Valores Pagtos)
                                         cols_equipe = [1, 3, 6, 8, 9, 10, 11, 12]
                                         cols_anexo = [3, 8, 10] if fund_sigla in ["FDMS", "FATEC"] else [3, 7, 9]
 
@@ -801,9 +810,9 @@ with aba_gerador:
                                         injetar_aba_dinamica("Equipe_Nao_Vinc", linha_nao_vinc, cols_equipe)
                                         injetar_aba_dinamica("Anexo_1", linha_anexo, cols_anexo)
                                         
-                                        # 2. Processa Tabelas Fixas (Despesas)
+                                        # 2. Processa Tabelas Fixas (Despesas / 3.2 Usos)
                                         somas_categorias = {
-                                            "4.2 - Diárias": 0, "4.3 - Serviços de Terceiros Pessoa Jurídica": 0,
+                                            "DESPESAS DE CUSTEIO": 0, "4.2 - Diárias": 0, "4.3 - Serviços de Terceiros Pessoa Jurídica": 0,
                                             "4.4 - Serviços de Terceiros - Pessoa Física": 0, "4.5 - Passagens e Despesas de Locomoção": 0,
                                             "4.6 - Material de Consumo": 0, "4.8 - Obras e Instalações": 0
                                         }
@@ -823,14 +832,19 @@ with aba_gerador:
                                                         soma_aba += row[1]
                                                 somas_categorias[nome_cat] = soma_aba
 
-                                        # Injeta Somas nos cabeçalhos (Novo Padrão FATEC/FDMS) - DESVIO DE MESCLAGEM DUPLA
+                                        # Puxa o total de custeio gravado na base
+                                        somas_categorias["DESPESAS DE CUSTEIO"] = sum(item[7] for item in wb_fin["Equipe_Vinc"].iter_rows(min_row=2, values_only=True) if item[0] != "Nenhum item cadastrado") + \
+                                                                                  sum(item[7] for item in wb_fin["Equipe_Nao_Vinc"].iter_rows(min_row=2, values_only=True) if item[0] != "Nenhum item cadastrado") + \
+                                                                                  sum([somas_categorias[c] for c in ["4.2 - Diárias", "4.3 - Serviços de Terceiros Pessoa Jurídica", "4.4 - Serviços de Terceiros - Pessoa Física", "4.5 - Passagens e Despesas de Locomoção", "4.6 - Material de Consumo"]])
+
+                                        # Injeta Somas nos cabeçalhos (Novo Padrão FATEC/FDMS) - Rastreia a partir da linha 80!
                                         for cat_name, soma_val in somas_categorias.items():
                                             if soma_val > 0:
-                                                linha_cat = encontrar_linha(ws, cat_name, 150, 350)
+                                                linha_cat = encontrar_linha(ws, cat_name, 80, 350)
                                                 if linha_cat: 
                                                     escrever_excel(f"K{linha_cat}", soma_val)
 
-                                        # Injeta Itens Detalhados se houver espaço (Padrão FUNDEP/FAURGS)
+                                        # Injeta Itens Detalhados se houver espaço
                                         if valores_fixos:
                                             for row_idx in range(180, 350):
                                                 for col_idx in range(1, 6):
@@ -843,31 +857,26 @@ with aba_gerador:
                                         # 3. NOVAS SEÇÕES DINÂMICAS: FONTES (3.1), APLICAÇÃO (4) E CRONOGRAMA (6)
                                         # =========================================================
                                         
-                                        tipo_crono = "Mensal"
-                                        if "Config_Raichu" in wb_fin.sheetnames:
-                                            for row in wb_fin["Config_Raichu"].iter_rows(values_only=True):
-                                                if row[0] == "Cronograma_Tipo": tipo_crono = row[1]
-                                        
-                                        # Seção 3.1 - FONTES
+                                        # Seção 3.1 - FONTES (Adiciona o VALOR GERAL em vez de "X")
                                         if "Fontes_3.1" in wb_fin.sheetnames:
                                             for row in wb_fin["Fontes_3.1"].iter_rows(min_row=2, values_only=True):
                                                 fonte, check, tit_f, reg_f = row[0], row[1], row[2], row[3]
                                                 if check == "X":
                                                     linha_f = encontrar_linha(ws, fonte[:30], 60, 100) 
                                                     if linha_f:
-                                                        escrever_excel(f"K{linha_f}", "X")
+                                                        escrever_excel(f"K{linha_f}", total_geral_projeto)
                                                         if "prestação de serviços abaixo" in fonte and tit_f:
                                                             linha_txt_f = encontrar_linha(ws, "(Informe o título", linha_f, linha_f+4)
                                                             if linha_txt_f: 
                                                                 escrever_excel(f"A{linha_txt_f}", f"Título: {tit_f} - Registro: {reg_f}")
                                                             
-                                        # Seção 4 - PLANO DE APLICAÇÃO
+                                        # Seção 4 - PLANO DE APLICAÇÃO (Adiciona o VALOR DA APLICAÇÃO em vez de "X")
                                         if "Aplicacao_4" in wb_fin.sheetnames:
                                             row_app = list(wb_fin["Aplicacao_4"].iter_rows(min_row=2, values_only=True))[0]
                                             if row_app[0] == "Sim":
                                                 linha_app = encontrar_linha(ws, "Investimento em projeto de Pesquisa", 90, 130)
                                                 if linha_app:
-                                                    escrever_excel(f"K{linha_app}", "X")
+                                                    escrever_excel(f"K{linha_app}", row_app[3]) # Injeta o Valor Específico
                                                     linha_txt_app = encontrar_linha(ws, "(Informe o título", linha_app, linha_app+4)
                                                     if linha_txt_app: 
                                                         escrever_excel(f"A{linha_txt_app}", f"Título: {row_app[1]} - Registro: {row_app[2]}")
