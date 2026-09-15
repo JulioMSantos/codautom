@@ -83,7 +83,7 @@ with aba_gerador:
             return ""
         return txt_final.strip()
 
-    # --- DETECÇÃO AUTOMÁTICA DO INSTRUMENTO JURÍDICO (INTELIGENTE) ---
+    # --- DETECÇÃO AUTOMÁTICA DO INSTRUMENTO JURÍDICO (SISTEMA DE PONTUAÇÃO) ---
     def identificar_instrumento_juridico(texto):
         texto_low = (texto or "").lower()
 
@@ -263,6 +263,7 @@ with aba_gerador:
             if not bloco_participantes:
                 bloco_participantes = texto_limpo
 
+            # Leitura do SIAPE e NOME juntos
             matches_participantes = list(re.finditer(r'(\d{5,15})\s*-\s*([A-ZÀ-Ÿ\s\']+?)\s*(?=[A-ZÀ-Ÿ][a-zà-ÿ]|UNIDADES VINCULADAS|CLASSIFICAÇÕES|$)', bloco_participantes))
             
             for i, match in enumerate(matches_participantes):
@@ -793,7 +794,8 @@ with aba_gerador:
                                         linha_anexo_busca = encontrar_linha(ws, "ESPECIFICAÇÃO", 280, 450)
                                         linha_anexo = linha_anexo_busca + 1 if linha_anexo_busca else (300 if fund_sigla in ["FDMS", "FATEC"] else 399)
 
-                                        cols_equipe = [1, 3, 5, 7, 9, 10, 12]
+                                        # COLUNAS CORRIGIDAS PARA EQUIPE: [Tipo, Nome, Siape, CPF, Carga, NPagtos, Vlr_Parcela, Vlr_Total]
+                                        cols_equipe = [1, 3, 6, 8, 9, 10, 11, 12]
                                         cols_anexo = [3, 8, 10] if fund_sigla in ["FDMS", "FATEC"] else [3, 7, 9]
 
                                         injetar_aba_dinamica("Equipe_Vinc", linha_vinc, cols_equipe)
@@ -822,13 +824,14 @@ with aba_gerador:
                                                         soma_aba += row[1]
                                                 somas_categorias[nome_cat] = soma_aba
 
-                                        # Injeta Somas nos cabeçalhos (Novo Padrão FATEC/FDMS)
+                                        # Injeta Somas nos cabeçalhos (Novo Padrão FATEC/FDMS) - DESVIO DE MESCLAGEM DUPLA
                                         for cat_name, soma_val in somas_categorias.items():
                                             if soma_val > 0:
-                                                linha_cat = encontrar_linha(ws, cat_name, 150, 250)
-                                                if linha_cat: escrever_excel(f"K{linha_cat}", soma_val)
+                                                linha_cat = encontrar_linha(ws, cat_name, 150, 350)
+                                                if linha_cat: 
+                                                    escrever_excel(f"K{linha_cat}", soma_val)
 
-                                        # Injeta Itens Detalhados se houver espaço
+                                        # Injeta Itens Detalhados se houver espaço (Padrão FUNDEP/FAURGS)
                                         if valores_fixos:
                                             for row_idx in range(180, 350):
                                                 for col_idx in range(1, 6):
@@ -856,7 +859,8 @@ with aba_gerador:
                                                         escrever_excel(f"K{linha_f}", "X")
                                                         if "prestação de serviços abaixo" in fonte and tit_f:
                                                             linha_txt_f = encontrar_linha(ws, "(Informe o título", linha_f, linha_f+4)
-                                                            if linha_txt_f: escrever_excel(f"A{linha_txt_f}", f"Título: {tit_f} - Registro: {reg_f}")
+                                                            if linha_txt_f: 
+                                                                escrever_excel(f"A{linha_txt_f}", f"Título: {tit_f} - Registro: {reg_f}")
                                                             
                                         # Seção 4 - PLANO DE APLICAÇÃO
                                         if "Aplicacao_4" in wb_fin.sheetnames:
@@ -866,7 +870,8 @@ with aba_gerador:
                                                 if linha_app:
                                                     escrever_excel(f"K{linha_app}", "X")
                                                     linha_txt_app = encontrar_linha(ws, "(Informe o título", linha_app, linha_app+4)
-                                                    if linha_txt_app: escrever_excel(f"A{linha_txt_app}", f"Título: {row_app[1]} - Registro: {row_app[2]}")
+                                                    if linha_txt_app: 
+                                                        escrever_excel(f"A{linha_txt_app}", f"Título: {row_app[1]} - Registro: {row_app[2]}")
                                                 
                                         # Seção 6 - CRONOGRAMA DE DESEMBOLSO
                                         if "Cronograma_6" in wb_fin.sheetnames:
@@ -904,12 +909,12 @@ with aba_gerador:
                                     except Exception as err:
                                         logs.append(f"❌ Erro ao ler/injetar Dados Financeiros: {str(err)}")
 
-                                excel_buffer = io.BytesIO()
-                                wb.save(excel_buffer)
-                                zip_file.writestr(f"01_Documentos_Gerais/{arq_excel}", excel_buffer.getvalue())
+                            excel_buffer = io.BytesIO()
+                            wb.save(excel_buffer)
+                            zip_file.writestr(f"01_Documentos_Gerais/{arq_excel}", excel_buffer.getvalue())
 
-                            except Exception as e:
-                                logs.append(f"❌ Erro crítico no Excel Mestre: {str(e)}")
+                        except Exception as e:
+                            logs.append(f"❌ Erro crítico no Excel Mestre: {str(e)}")
 
                 if logs:
                     st.warning("⚠️ Foram gerados arquivos, mas ocorreram alguns avisos:")
