@@ -83,7 +83,7 @@ with aba_gerador:
             return ""
         return txt_final.strip()
 
-    # --- DETECÇÃO AUTOMÁTICA DO INSTRUMENTO JURÍDICO (SISTEMA DE PONTUAÇÃO) ---
+    # --- DETECÇÃO AUTOMÁTICA DO INSTRUMENTO JURÍDICO (INTELIGENTE) ---
     def identificar_instrumento_juridico(texto):
         texto_low = (texto or "").lower()
 
@@ -263,7 +263,6 @@ with aba_gerador:
             if not bloco_participantes:
                 bloco_participantes = texto_limpo
 
-            # Leitura do SIAPE e NOME juntos
             matches_participantes = list(re.finditer(r'(\d{5,15})\s*-\s*([A-ZÀ-Ÿ\s\']+?)\s*(?=[A-ZÀ-Ÿ][a-zà-ÿ]|UNIDADES VINCULADAS|CLASSIFICAÇÕES|$)', bloco_participantes))
             
             for i, match in enumerate(matches_participantes):
@@ -909,12 +908,12 @@ with aba_gerador:
                                     except Exception as err:
                                         logs.append(f"❌ Erro ao ler/injetar Dados Financeiros: {str(err)}")
 
-                            excel_buffer = io.BytesIO()
-                            wb.save(excel_buffer)
-                            zip_file.writestr(f"01_Documentos_Gerais/{arq_excel}", excel_buffer.getvalue())
+                                excel_buffer = io.BytesIO()
+                                wb.save(excel_buffer)
+                                zip_file.writestr(f"01_Documentos_Gerais/{arq_excel}", excel_buffer.getvalue())
 
-                        except Exception as e:
-                            logs.append(f"❌ Erro crítico no Excel Mestre: {str(e)}")
+                            except Exception as e:
+                                logs.append(f"❌ Erro crítico no Excel Mestre: {str(e)}")
 
                 if logs:
                     st.warning("⚠️ Foram gerados arquivos, mas ocorreram alguns avisos:")
