@@ -263,7 +263,6 @@ with aba_gerador:
             if not bloco_participantes:
                 bloco_participantes = texto_limpo
 
-            # Leitura conjunta do SIAPE e Nome
             matches_participantes = list(re.finditer(r'(\d{5,15})\s*-\s*([A-ZÀ-Ÿ\s\']+?)\s*(?=[A-ZÀ-Ÿ][a-zà-ÿ]|UNIDADES VINCULADAS|CLASSIFICAÇÕES|$)', bloco_participantes))
             
             for i, match in enumerate(matches_participantes):
@@ -674,14 +673,19 @@ with aba_gerador:
                                 ws = wb["Plano de Trabalho"] if "Plano de Trabalho" in wb.sheetnames else wb.worksheets[0]
 
                                 def escrever_excel(celula, valor):
-                                    val_str = str(valor).strip() if valor is not None else ""
-                                    if val_str in ["", "-", "None", "Não se aplica"]: val_str = None
+                                    if valor in ["", "-", "None", "Não se aplica", None]: 
+                                        valor_final = None
+                                    elif isinstance(valor, (int, float)):
+                                        valor_final = valor
+                                    else:
+                                        valor_final = str(valor).strip()
+                                        
                                     try:
                                         r_row, r_col = coordinate_to_tuple(celula)
                                         
-                                        if val_str and len(val_str) > 0:
-                                            qtd_quebras = val_str.count('\n')
-                                            linhas_estimadas = (len(val_str) / 110.0) + qtd_quebras
+                                        if isinstance(valor_final, str) and len(valor_final) > 0:
+                                            qtd_quebras = valor_final.count('\n')
+                                            linhas_estimadas = (len(valor_final) / 110.0) + qtd_quebras
                                             if linhas_estimadas < 1: linhas_estimadas = 1
                                             altura_calculada = (linhas_estimadas * 15) + 10
                                             altura_atual = ws.row_dimensions[r_row].height
@@ -694,14 +698,16 @@ with aba_gerador:
                                                 intervalo = str(merged_range)
                                                 ws.unmerge_cells(intervalo)
                                                 cel_alvo = ws.cell(row=min_row, column=min_col)
-                                                cel_alvo.value = val_str
-                                                cel_alvo.alignment = Alignment(wrap_text=True, vertical='top')
+                                                cel_alvo.value = valor_final
+                                                if isinstance(valor_final, str):
+                                                    cel_alvo.alignment = Alignment(wrap_text=True, vertical='top')
                                                 ws.merge_cells(intervalo)
                                                 return
                                                 
                                         cel_alvo = ws.cell(row=r_row, column=r_col)
-                                        cel_alvo.value = val_str
-                                        cel_alvo.alignment = Alignment(wrap_text=True, vertical='top')
+                                        cel_alvo.value = valor_final
+                                        if isinstance(valor_final, str):
+                                            cel_alvo.alignment = Alignment(wrap_text=True, vertical='top')
                                     except Exception as err:
                                         logs.append(f"Aviso na célula {celula}: {str(err)}")
 
@@ -786,11 +792,13 @@ with aba_gerador:
 
                                         # Lendo a configuração geral do financeiro
                                         tipo_crono = "Mensal"
-                                        total_geral_projeto = 0
+                                        total_geral_projeto = 0.0
                                         if "Config_Raichu" in wb_fin.sheetnames:
                                             for row in wb_fin["Config_Raichu"].iter_rows(values_only=True):
                                                 if row[0] == "Cronograma_Tipo": tipo_crono = row[1]
-                                                if row[0] == "Total_Geral": total_geral_projeto = row[1]
+                                                if row[0] == "Total_Geral": 
+                                                    try: total_geral_projeto = float(row[1])
+                                                    except: pass
 
                                         # 1. Encontra o início das Equipes e Anexos dinamicamente
                                         linha_vinc_busca = encontrar_linha(ws, "TIPO DE REMUNERAÇÃO", 100, 160)
@@ -802,7 +810,7 @@ with aba_gerador:
                                         linha_anexo_busca = encontrar_linha(ws, "ESPECIFICAÇÃO", 280, 450)
                                         linha_anexo = linha_anexo_busca + 1 if linha_anexo_busca else (300 if fund_sigla in ["FDMS", "FATEC"] else 399)
 
-                                        # COLUNAS CORRIGIDAS PARA EQUIPE (Pula vazias e acerta Valores Pagtos)
+                                        # COLUNAS CORRIGIDAS PARA EQUIPE
                                         cols_equipe = [1, 3, 6, 8, 9, 10, 11, 12]
                                         cols_anexo = [3, 8, 10] if fund_sigla in ["FDMS", "FATEC"] else [3, 7, 9]
 
@@ -812,9 +820,9 @@ with aba_gerador:
                                         
                                         # 2. Processa Tabelas Fixas (Despesas / 3.2 Usos)
                                         somas_categorias = {
-                                            "DESPESAS DE CUSTEIO": 0, "4.2 - Diárias": 0, "4.3 - Serviços de Terceiros Pessoa Jurídica": 0,
-                                            "4.4 - Serviços de Terceiros - Pessoa Física": 0, "4.5 - Passagens e Despesas de Locomoção": 0,
-                                            "4.6 - Material de Consumo": 0, "4.8 - Obras e Instalações": 0
+                                            "DESPESAS DE CUSTEIO": 0.0, "4.2 - Diárias": 0.0, "4.3 - Serviços de Terceiros Pessoa Jurídica": 0.0,
+                                            "4.4 - Serviços de Terceiros - Pessoa Física": 0.0, "4.5 - Passagens e Despesas de Locomoção": 0.0,
+                                            "4.6 - Material de Consumo": 0.0, "4.8 - Obras e Instalações": 0.0
                                         }
                                         mapa_abas = {
                                             "Diarias": "4.2 - Diárias", "Servicos_PJ": "4.3 - Serviços de Terceiros Pessoa Jurídica",
@@ -825,19 +833,26 @@ with aba_gerador:
                                         valores_fixos = {}
                                         for aba_fixa, nome_cat in mapa_abas.items():
                                             if aba_fixa in wb_fin.sheetnames:
-                                                soma_aba = 0
+                                                soma_aba = 0.0
                                                 for row in wb_fin[aba_fixa].iter_rows(min_row=2, values_only=True):
                                                     if row[0] and str(row[0]) != "Nenhum item preenchido":
-                                                        valores_fixos[str(row[0]).strip()] = row[1]
-                                                        soma_aba += row[1]
+                                                        try:
+                                                            val_float = float(row[1])
+                                                            valores_fixos[str(row[0]).strip()] = val_float
+                                                            soma_aba += val_float
+                                                        except: pass
                                                 somas_categorias[nome_cat] = soma_aba
 
-                                        # Puxa o total de custeio gravado na base
-                                        somas_categorias["DESPESAS DE CUSTEIO"] = sum(item[7] for item in wb_fin["Equipe_Vinc"].iter_rows(min_row=2, values_only=True) if item[0] != "Nenhum item cadastrado") + \
-                                                                                  sum(item[7] for item in wb_fin["Equipe_Nao_Vinc"].iter_rows(min_row=2, values_only=True) if item[0] != "Nenhum item cadastrado") + \
+                                        # Puxa o total de custeio gravado na base com conversão segura
+                                        def safe_float(val):
+                                            try: return float(val)
+                                            except: return 0.0
+
+                                        somas_categorias["DESPESAS DE CUSTEIO"] = sum(safe_float(item[7]) for item in wb_fin["Equipe_Vinc"].iter_rows(min_row=2, values_only=True) if item[0] != "Nenhum item cadastrado") + \
+                                                                                  sum(safe_float(item[7]) for item in wb_fin["Equipe_Nao_Vinc"].iter_rows(min_row=2, values_only=True) if item[0] != "Nenhum item cadastrado") + \
                                                                                   sum([somas_categorias[c] for c in ["4.2 - Diárias", "4.3 - Serviços de Terceiros Pessoa Jurídica", "4.4 - Serviços de Terceiros - Pessoa Física", "4.5 - Passagens e Despesas de Locomoção", "4.6 - Material de Consumo"]])
 
-                                        # Injeta Somas nos cabeçalhos (Novo Padrão FATEC/FDMS) - Rastreia a partir da linha 80!
+                                        # Injeta Somas nos cabeçalhos - Rastreia a partir da linha 80
                                         for cat_name, soma_val in somas_categorias.items():
                                             if soma_val > 0:
                                                 linha_cat = encontrar_linha(ws, cat_name, 80, 350)
@@ -857,7 +872,7 @@ with aba_gerador:
                                         # 3. NOVAS SEÇÕES DINÂMICAS: FONTES (3.1), APLICAÇÃO (4) E CRONOGRAMA (6)
                                         # =========================================================
                                         
-                                        # Seção 3.1 - FONTES (Adiciona o VALOR GERAL em vez de "X")
+                                        # Seção 3.1 - FONTES
                                         if "Fontes_3.1" in wb_fin.sheetnames:
                                             for row in wb_fin["Fontes_3.1"].iter_rows(min_row=2, values_only=True):
                                                 fonte, check, tit_f, reg_f = row[0], row[1], row[2], row[3]
@@ -866,18 +881,19 @@ with aba_gerador:
                                                     if linha_f:
                                                         escrever_excel(f"K{linha_f}", total_geral_projeto)
                                                         if "prestação de serviços abaixo" in fonte and tit_f:
-                                                            linha_txt_f = encontrar_linha(ws, "(Informe o título", linha_f, linha_f+4)
+                                                            linha_txt_f = encontrar_linha(ws, "(Informe o título", linha_f, linha_f+4, cols=[1,2,3])
                                                             if linha_txt_f: 
-                                                                escrever_excel(f"A{linha_txt_f}", f"Título: {tit_f} - Registro: {reg_f}")
+                                                                escrever_excel(f"B{linha_txt_f}", f"Título: {tit_f} - Registro: {reg_f}")
                                                             
-                                        # Seção 4 - PLANO DE APLICAÇÃO (Adiciona o VALOR DA APLICAÇÃO em vez de "X")
+                                        # Seção 4 - PLANO DE APLICAÇÃO
                                         if "Aplicacao_4" in wb_fin.sheetnames:
                                             row_app = list(wb_fin["Aplicacao_4"].iter_rows(min_row=2, values_only=True))[0]
                                             if row_app[0] == "Sim":
                                                 linha_app = encontrar_linha(ws, "Investimento em projeto de Pesquisa", 90, 130)
                                                 if linha_app:
-                                                    escrever_excel(f"K{linha_app}", row_app[3]) # Injeta o Valor Específico
-                                                    linha_txt_app = encontrar_linha(ws, "(Informe o título", linha_app, linha_app+4)
+                                                    val_app = safe_float(row_app[3]) if len(row_app) > 3 else 0.0
+                                                    escrever_excel(f"K{linha_app}", val_app)
+                                                    linha_txt_app = encontrar_linha(ws, "(Informe o título", linha_app, linha_app+4, cols=[1,2,3])
                                                     if linha_txt_app: 
                                                         escrever_excel(f"A{linha_txt_app}", f"Título: {row_app[1]} - Registro: {row_app[2]}")
                                                 
@@ -893,21 +909,22 @@ with aba_gerador:
                                                     if not linha_ini: linha_ini = 265
                                                     
                                                     for i, val in enumerate(valores_crono):
-                                                        if i < 30: escrever_excel(f"C{linha_ini + i}", val)
-                                                        elif i < 60: escrever_excel(f"E{linha_ini + (i - 30)}", val)
+                                                        val_safe = safe_float(val)
+                                                        if i < 30: escrever_excel(f"C{linha_ini + i}", val_safe)
+                                                        elif i < 60: escrever_excel(f"E{linha_ini + (i - 30)}", val_safe)
                                                         
                                                 elif tipo_crono == "Semestral":
                                                     linha_sem_1 = encontrar_linha(ws, "1º Semestre", linha_base_crono, linha_base_crono+20, cols=[8])
                                                     if linha_sem_1:
                                                         linhas_sem = [linha_sem_1, linha_sem_1+1, linha_sem_1+4, linha_sem_1+5, linha_sem_1+8, linha_sem_1+9, linha_sem_1+12, linha_sem_1+13, linha_sem_1+16, linha_sem_1+17]
                                                         for i, val in enumerate(valores_crono):
-                                                            if i < len(linhas_sem): escrever_excel(f"J{linhas_sem[i]}", val)
+                                                            if i < len(linhas_sem): escrever_excel(f"J{linhas_sem[i]}", safe_float(val))
                                                             
                                                 elif tipo_crono == "Anual":
                                                     linha_ano_1 = encontrar_linha(ws, "ANO 1", linha_base_crono, linha_base_crono+40, cols=[7, 8])
                                                     if linha_ano_1:
                                                         for i, val in enumerate(valores_crono):
-                                                            if i < 5: escrever_excel(f"I{linha_ano_1 + i}", val)
+                                                            if i < 5: escrever_excel(f"I{linha_ano_1 + i}", safe_float(val))
 
                                         # =========================================================
 
