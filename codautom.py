@@ -263,7 +263,6 @@ with aba_gerador:
             if not bloco_participantes:
                 bloco_participantes = texto_limpo
 
-            # Leitura conjunta do SIAPE e Nome
             matches_participantes = list(re.finditer(r'(\d{5,15})\s*-\s*([A-ZÀ-Ÿ\s\']+?)\s*(?=[A-ZÀ-Ÿ][a-zà-ÿ]|UNIDADES VINCULADAS|CLASSIFICAÇÕES|$)', bloco_participantes))
             
             for i, match in enumerate(matches_participantes):
@@ -673,6 +672,7 @@ with aba_gerador:
                                 wb = openpyxl.load_workbook(caminho_excel)
                                 ws = wb["Plano de Trabalho"] if "Plano de Trabalho" in wb.sheetnames else wb.worksheets[0]
 
+                                # INJEÇÃO BLINDADA: Preserva O R$, Mantém a Cor, e Nunca Desmescla!
                                 def escrever_excel(celula, valor):
                                     if valor in ["", "-", "None", "Não se aplica", None]: 
                                         valor_final = None
@@ -693,22 +693,14 @@ with aba_gerador:
                                             if altura_atual is None or altura_calculada > altura_atual:
                                                 ws.row_dimensions[r_row].height = altura_calculada
 
+                                        # Apenas atira o valor na primeira célula da mescla - mantendo o estilo 100% puro do Excel
                                         for merged_range in list(ws.merged_cells.ranges):
                                             min_col, min_row, max_col, max_row = merged_range.bounds
                                             if min_col <= r_col <= max_col and min_row <= r_row <= max_row:
-                                                intervalo = str(merged_range)
-                                                ws.unmerge_cells(intervalo)
-                                                cel_alvo = ws.cell(row=min_row, column=min_col)
-                                                cel_alvo.value = valor_final
-                                                if isinstance(valor_final, str):
-                                                    cel_alvo.alignment = Alignment(wrap_text=True, vertical='top')
-                                                ws.merge_cells(intervalo)
+                                                ws.cell(row=min_row, column=min_col).value = valor_final
                                                 return
                                                 
-                                        cel_alvo = ws.cell(row=r_row, column=r_col)
-                                        cel_alvo.value = valor_final
-                                        if isinstance(valor_final, str):
-                                            cel_alvo.alignment = Alignment(wrap_text=True, vertical='top')
+                                        ws.cell(row=r_row, column=r_col).value = valor_final
                                     except Exception as err:
                                         logs.append(f"Aviso na célula {celula}: {str(err)}")
 
@@ -769,7 +761,6 @@ with aba_gerador:
                                     try:
                                         wb_fin = openpyxl.load_workbook(arquivo_financeiro, data_only=True)
                                         
-                                        # --- SCANNER INTELIGENTE DE LINHAS ---
                                         def encontrar_linha(planilha, texto_busca, min_row, max_row, cols=[1, 2, 3, 7, 8]):
                                             for r in range(min_row, max_row):
                                                 for c in cols:
@@ -791,7 +782,7 @@ with aba_gerador:
                                                         escrever_excel(coordenada, row[idx])
                                                 linha_atual += 1
 
-                                        # Lendo a configuração geral do financeiro
+                                        # Lendo a configuração geral
                                         tipo_crono = "Mensal"
                                         total_geral_projeto = 0.0
                                         if "Config_Raichu" in wb_fin.sheetnames:
@@ -811,9 +802,9 @@ with aba_gerador:
                                         linha_anexo_busca = encontrar_linha(ws, "ESPECIFICAÇÃO", 280, 450)
                                         linha_anexo = linha_anexo_busca + 1 if linha_anexo_busca else (300 if fund_sigla in ["FDMS", "FATEC"] else 399)
 
-                                        # COLUNAS CORRIGIDAS PARA EQUIPE
+                                        # COLUNAS CORRIGIDAS (Alinhado com FATEC e FUNDEP)
                                         cols_equipe = [1, 3, 6, 8, 9, 10, 11, 12]
-                                        cols_anexo = [3, 8, 10] if fund_sigla in ["FDMS", "FATEC"] else [3, 7, 9]
+                                        cols_anexo = [3, 8, 9, 11] # Colunas C, H, I, K
 
                                         injetar_aba_dinamica("Equipe_Vinc", linha_vinc, cols_equipe)
                                         injetar_aba_dinamica("Equipe_Nao_Vinc", linha_nao_vinc, cols_equipe)
@@ -821,7 +812,8 @@ with aba_gerador:
                                         
                                         # 2. Processa Tabelas Fixas (Despesas / 3.2 Usos)
                                         somas_categorias = {
-                                            "DESPESAS DE CUSTEIO": 0.0, "4.2 - Diárias": 0.0, "4.3 - Serviços de Terceiros Pessoa Jurídica": 0.0,
+                                            "DESPESAS DE CUSTEIO": 0.0, "DESPESAS DE CAPITAL": 0.0, 
+                                            "4.2 - Diárias": 0.0, "4.3 - Serviços de Terceiros Pessoa Jurídica": 0.0,
                                             "4.4 - Serviços de Terceiros - Pessoa Física": 0.0, "4.5 - Passagens e Despesas de Locomoção": 0.0,
                                             "4.6 - Material de Consumo": 0.0, "4.8 - Obras e Instalações": 0.0
                                         }
@@ -831,6 +823,10 @@ with aba_gerador:
                                             "Consumo": "4.6 - Material de Consumo", "Obras": "4.8 - Obras e Instalações"
                                         }
                                         
+                                        def safe_float(val):
+                                            try: return float(val)
+                                            except: return 0.0
+
                                         valores_fixos = {}
                                         for aba_fixa, nome_cat in mapa_abas.items():
                                             if aba_fixa in wb_fin.sheetnames:
@@ -844,23 +840,25 @@ with aba_gerador:
                                                         except: pass
                                                 somas_categorias[nome_cat] = soma_aba
 
-                                        # Puxa o total de custeio gravado na base com conversão segura
-                                        def safe_float(val):
-                                            try: return float(val)
-                                            except: return 0.0
-
+                                        # Integração Segura do Custeio (Puxa os totais desde a Coluna L que é o índice 7)
                                         somas_categorias["DESPESAS DE CUSTEIO"] = sum(safe_float(item[7]) for item in wb_fin["Equipe_Vinc"].iter_rows(min_row=2, values_only=True) if item[0] != "Nenhum item cadastrado") + \
                                                                                   sum(safe_float(item[7]) for item in wb_fin["Equipe_Nao_Vinc"].iter_rows(min_row=2, values_only=True) if item[0] != "Nenhum item cadastrado") + \
                                                                                   sum([somas_categorias[c] for c in ["4.2 - Diárias", "4.3 - Serviços de Terceiros Pessoa Jurídica", "4.4 - Serviços de Terceiros - Pessoa Física", "4.5 - Passagens e Despesas de Locomoção", "4.6 - Material de Consumo"]])
 
-                                        # Injeta Somas nos cabeçalhos - Rastreia a partir da linha 80
+                                        # Integração Segura de Capital (Obras + Anexo 1)
+                                        total_anexo1 = 0.0
+                                        if "Anexo_1" in wb_fin.sheetnames:
+                                            total_anexo1 = sum(safe_float(item[3]) for item in wb_fin["Anexo_1"].iter_rows(min_row=2, values_only=True) if item[0] != "Nenhum item cadastrado")
+                                        somas_categorias["DESPESAS DE CAPITAL"] = somas_categorias["4.8 - Obras e Instalações"] + total_anexo1
+
+                                        # Injeta Somas nos cabeçalhos (Vasculha toda a extensão a partir da linha 80)
                                         for cat_name, soma_val in somas_categorias.items():
                                             if soma_val > 0:
                                                 linha_cat = encontrar_linha(ws, cat_name, 80, 350)
                                                 if linha_cat: 
                                                     escrever_excel(f"K{linha_cat}", soma_val)
 
-                                        # Injeta Itens Detalhados se houver espaço
+                                        # Injeta Itens Detalhados nas Subcategorias
                                         if valores_fixos:
                                             for row_idx in range(180, 350):
                                                 for col_idx in range(1, 6):
@@ -880,8 +878,8 @@ with aba_gerador:
                                                 if check == "X":
                                                     linha_f = encontrar_linha(ws, fonte[:30], 60, 100) 
                                                     if linha_f:
-                                                        escrever_excel(f"A{linha_f}", "X") # Marca a Coluna A
-                                                        escrever_excel(f"K{linha_f}", total_geral_projeto)
+                                                        escrever_excel(f"A{linha_f}", "X") # Marca o X na Checkbox da margem A
+                                                        escrever_excel(f"K{linha_f}", total_geral_projeto) # Atira o Total na margem K
                                                         if "prestação de serviços abaixo" in fonte and tit_f:
                                                             linha_txt_f = encontrar_linha(ws, "(Informe o título", linha_f, linha_f+4, cols=[1,2,3])
                                                             if linha_txt_f: 
