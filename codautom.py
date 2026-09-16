@@ -263,6 +263,7 @@ with aba_gerador:
             if not bloco_participantes:
                 bloco_participantes = texto_limpo
 
+            # Leitura conjunta do SIAPE e Nome
             matches_participantes = list(re.finditer(r'(\d{5,15})\s*-\s*([A-ZÀ-Ÿ\s\']+?)\s*(?=[A-ZÀ-Ÿ][a-zà-ÿ]|UNIDADES VINCULADAS|CLASSIFICAÇÕES|$)', bloco_participantes))
             
             for i, match in enumerate(matches_participantes):
@@ -879,6 +880,7 @@ with aba_gerador:
                                                 if check == "X":
                                                     linha_f = encontrar_linha(ws, fonte[:30], 60, 100) 
                                                     if linha_f:
+                                                        escrever_excel(f"A{linha_f}", "X") # Marca a Coluna A
                                                         escrever_excel(f"K{linha_f}", total_geral_projeto)
                                                         if "prestação de serviços abaixo" in fonte and tit_f:
                                                             linha_txt_f = encontrar_linha(ws, "(Informe o título", linha_f, linha_f+4, cols=[1,2,3])
