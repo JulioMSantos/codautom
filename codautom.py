@@ -614,7 +614,12 @@ with aba_gerador:
                     "membros": equipe_final, "objetivos": objetivos, "metas": metas,
                     "justificativa": justificativa, "resultados": resultados,
                     "importancia_projeto": importancia, "importanciaprojeto": importancia,
-                    "justificativa_fund": justificativa_fund, "justificativafund": justificativa_fund,
+                    
+                    # CORREÇÃO CRÍTICA AQUI: Inserido o nome exato da TAG da FATEC!
+                    "justificativa_fundacao": justificativa_fund,
+                    "justificativa_fund": justificativa_fund, 
+                    "justificativafund": justificativa_fund,
+                    
                     "diretor_unidade": diretor_unidade, "diretorunidade": diretor_unidade,
                     "siape_diretor": siape_diretor, "siapediretor": siape_diretor
                 }
