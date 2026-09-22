@@ -47,7 +47,7 @@ with aba_inicio:
     with col_side:
         with st.container(border=True):
             st.markdown("### ℹ️ Informações da Versão")
-            st.markdown("**Versão:** 3.0.0 (Integração Financeira Completa)")
+            st.markdown("**Versão:** 4.0.0 (Automação Total Multi-Relatórios)")
             st.markdown("**Desenvolvido por:** Julio Maia dos Santos - Estudante de graduação em Engenharia Elétrica 👨‍💻⚡")
             st.markdown("**Arquitetura:** Python Nativo (Streamlit Cloud)")
             st.divider()
@@ -73,6 +73,7 @@ with aba_gerador:
             if re.search(r'(?i)Página \d+ de \d+', l_strip): continue
             if re.search(r'(?i)UNIVERSIDADE FEDERAL DE SANTA MARIA', l_strip): continue
             if re.search(r'(?i)PROJETO NA ÍNTEGRA', l_strip): continue
+            if re.search(r'(?i)PROJETO - DADOS PARA FUNDAÇÃO', l_strip): continue
             if re.search(r'(?i)Consulte em http', l_strip): continue
             if re.search(r'\d{2}/\d{2}/\d{4}\s+\d{2}:\d{2}', l_strip): continue
             if re.search(r'[A-F0-9]{4}(?:\.[A-F0-9]{4}){7}', l_strip): continue
@@ -130,9 +131,10 @@ with aba_gerador:
     )
 
     st.markdown("### 1️⃣ Passo 1: Upload dos Arquivos")
+    st.info("💡 **Dica:** Você pode arrastar os dois relatórios juntos (O *Projeto na Íntegra* e o *Dados para Fundação*) para a caixa abaixo.")
     col_upload1, col_upload2 = st.columns(2)
     with col_upload1:
-        arquivo_pdf = st.file_uploader("1. Insira o Relatório do Projeto (.PDF)", type=["pdf"])
+        arquivos_pdf = st.file_uploader("1. Insira o(s) Relatório(s) do Projeto (.PDF)", type=["pdf"], accept_multiple_files=True)
     with col_upload2:
         arquivo_financeiro = st.file_uploader("2. Insira os Dados Financeiros (.XLSX) (Opcional)", type=["xlsx"])
 
@@ -147,20 +149,22 @@ with aba_gerador:
         "titulo": "", "numero": "", "empresa": "", "data_inicio_proj": "", "data_termino_proj": "",
         "resumo": "", "objetivos": "", "justificativa_proj": "", "resultados": "", "importancia_projeto": "",
         "plano_gestao": "", "objetivo_estrategico": "", "inovacao_bool": "", "inovacao_potencial": "",
-        "instrumento_juridico_pdf": "",
+        "instrumento_juridico_pdf": "", "diretor_nome": "", "diretor_siape": "", 
+        "chefe_nome": "", "chefe_siape": "", "justificativa_fund": "", "metas": "",
         "classificacoes_raw": [], "equipe_raw": [], "unidades_raw": [], "regioes_raw": [],
         "fundacao_sugerida": "FATEC", "tipo_processo_sugerido": "Acordo de Cooperação Técnica (ACT)"
     }
 
     texto_limpo = ""
 
-    if arquivo_pdf:
+    if arquivos_pdf:
         try:
             texto_completo = ""
-            with pdfplumber.open(arquivo_pdf) as pdf:
-                for page in pdf.pages:
-                    extraido = page.extract_text()
-                    if extraido: texto_completo += extraido + "\n"
+            for arq_pdf in arquivos_pdf:
+                with pdfplumber.open(arq_pdf) as pdf:
+                    for page in pdf.pages:
+                        extraido = page.extract_text()
+                        if extraido: texto_completo += extraido + "\n"
 
             texto_limpo = re.sub(r'---\s*PAGE\s*\d+\s*---', '\n', texto_completo, flags=re.IGNORECASE)
             texto_limpo = re.sub(r'\d{2}/\d{2}/\d{4}\s\d{2}:\d{2}', '', texto_limpo)
@@ -169,6 +173,7 @@ with aba_gerador:
             texto_limpo = re.sub(r'Registrado em:\s*\d{2}/\d{2}/\d{4}', '', texto_limpo, flags=re.IGNORECASE)
             texto_limpo = re.sub(r'UNIVERSIDADE FEDERAL DE SANTA MARIA - UFSM', '', texto_limpo, flags=re.IGNORECASE)
             texto_limpo = re.sub(r'PROJETO NA ÍNTEGRA', '', texto_limpo, flags=re.IGNORECASE)
+            texto_limpo = re.sub(r'PROJETO - DADOS PARA FUNDAÇÃO', '', texto_limpo, flags=re.IGNORECASE)
 
             lixos_para_apagar = [
                 r'(?i)PARTICIPANTE\s+V[ÍI]NCULO\s+CURSO/LOTA[ÇC][ÃA]O\s+FUN[ÇC][ÃA]O\s*\$\$\$',
@@ -199,11 +204,23 @@ with aba_gerador:
             dados_extraidos["empresa"] = extrair(r'(?:Financiador[a]?|Empresa|Cooperante|Financiador|Instituição):\s*(.*?)\n')
             dados_extraidos["instrumento_juridico_pdf"] = extrair(r'Instrumento jurídico celebrado:\s*([^\n]+)')
 
+            # EXTRAÇÃO DE NOMES, CHEFIAS E DIRETORES
             m_coord = re.search(r'Responsável pelo projeto:\s*(.*?)\s*\(\s*(\d+)\s*\)', texto_limpo, re.IGNORECASE)
+            if not m_coord: m_coord = re.search(r'Responsável pelo projeto:\s*\nNome:\s*(.*?)\s*\(\s*(\d+)\s*\)', texto_limpo, re.IGNORECASE)
             if m_coord: dados_extraidos["coord_geral_pdf"] = {"nome": m_coord.group(1).strip(), "siape": m_coord.group(2).strip()}
 
             m_fisc = re.search(r'Fiscal:\s*(\d+)\s*-\s*(.*?)\s*\(', texto_limpo, re.IGNORECASE)
             if m_fisc: dados_extraidos["fiscal_pdf"] = {"siape": m_fisc.group(1).strip(), "nome": m_fisc.group(2).strip()}
+
+            m_dir = re.search(r'Diretor\(a\) Unidade/Centro:\s*(.*?)\s*\(\s*(\d+)\s*\)', texto_limpo, re.IGNORECASE)
+            if m_dir:
+                dados_extraidos["diretor_nome"] = m_dir.group(1).strip()
+                dados_extraidos["diretor_siape"] = m_dir.group(2).strip()
+
+            m_chefe = re.search(r'Chefe:\s*(.*?)\s*\(\s*(\d+)\s*\)', texto_limpo, re.IGNORECASE)
+            if m_chefe:
+                dados_extraidos["chefe_nome"] = m_chefe.group(1).strip()
+                dados_extraidos["chefe_siape"] = m_chefe.group(2).strip()
 
             def extrair_bloco(inicio_regex, fins_regex):
                 m_inicio = re.search(inicio_regex, texto_limpo, re.IGNORECASE)
@@ -221,6 +238,16 @@ with aba_gerador:
             dados_extraidos["objetivos"] = limpar_texto_bloco(extrair_bloco(r'Objetivos:', [r'Justificativa:']))
             dados_extraidos["justificativa_proj"] = limpar_texto_bloco(extrair_bloco(r'Justificativa:', [r'Resultados esperados:']))
             dados_extraidos["resultados"] = limpar_texto_bloco(extrair_bloco(r'Resultados esperados:', [r'PARTICIPANTES', r'PLANO DE GESTÃO', r'UNIDADES VINCULADAS']))
+            
+            # NOVOS BLOCOS DE DADOS
+            imp = extrair_bloco(r'Importância do projeto:', [r'Justificativa para a escolha da fundação:', r'METAS\n', r'\| PLANO DE'])
+            if imp: dados_extraidos["importancia_projeto"] = limpar_texto_bloco(imp)
+
+            just_fund = extrair_bloco(r'Justificativa para a escolha da fundação:', [r'METAS\n', r'\| PLANO DE', r'NÚMERO', r'PARTICIPANTES\n'])
+            if just_fund: dados_extraidos["justificativa_fund"] = limpar_texto_bloco(just_fund)
+
+            metas_txt = extrair_bloco(r'METAS\n', [r'\| PLANO DE', r'NÚMERO', r'PARTICIPANTES\n', r'UNIDADES VINCULADAS'])
+            if metas_txt: dados_extraidos["metas"] = limpar_texto_bloco(metas_txt)
 
             cabecalho_combinado = r'PLANO DE GESTÃO\s*(?:-?\s*)?OBJETIVO ESTRATÉGICO'
             gestao_combined_raw = extrair_bloco(cabecalho_combinado, [r'\n\s*INOVAÇÃO', r'PROJETO POSSUI POTENCIAL', r'PROJETO POSSUI'])
@@ -385,7 +412,7 @@ with aba_gerador:
                 dados_extraidos["equipe_raw"].append({
                     "Nome": nome, "SIAPE": siape, "Vínculo": vinculo.title(), "Lotação": lotacao,
                     "Função": funcao, "Bolsa": bolsa, "CH_D": ch_d, "CH_F": ch_f, "Início": data_ini, "Término": data_fim,
-                    "Chefia Imediata": "", "SIAPE Chefia": ""
+                    "Chefia Imediata": dados_extraidos.get("chefe_nome", ""), "SIAPE Chefia": dados_extraidos.get("chefe_siape", "")
                 })
 
             unidades_blk = extrair_bloco(r'UNIDADES VINCULADAS\s*\n', [r'CLASSIFICAÇÕES', r'REGIÕES DE ATUAÇÃO', r'PARTICIPANTES'])
@@ -424,9 +451,9 @@ with aba_gerador:
                         })
 
         except Exception as e:
-            st.error(f"❌ Erro no processamento do PDF: {str(e)}")
+            st.error(f"❌ Erro no processamento do(s) PDF(s): {str(e)}")
 
-    if arquivo_pdf:
+    if arquivos_pdf:
         st.markdown("---")
 
         st.markdown("### 2️⃣ Passo 2: Validação da Fundação")
@@ -480,15 +507,15 @@ with aba_gerador:
                 objetivos = st.text_area("Objetivos do Projeto", value=dados_extraidos.get("objetivos", ""), height=120)
                 justificativa = st.text_area("Justificativa do Projeto", value=dados_extraidos.get("justificativa_proj", ""), height=120)
                 importancia = st.text_area("Importância do Projeto", value=dados_extraidos.get("importancia_projeto", ""), height=80)
-                justificativa_fund = st.text_area("Justificativa para escolha da Fundação", placeholder="Digite o motivo da escolha...", height=80)
+                justificativa_fund = st.text_area("Justificativa para escolha da Fundação", value=dados_extraidos.get("justificativa_fund", ""), height=80)
             with c2:
-                diretor_unidade = st.text_input("Diretor da Unidade")
-                siape_diretor = st.text_input("SIAPE do Diretor")
+                diretor_unidade = st.text_input("Diretor da Unidade", value=dados_extraidos.get("diretor_nome", ""))
+                siape_diretor = st.text_input("SIAPE do Diretor", value=dados_extraidos.get("diretor_siape", ""))
                 st.text_input("Classificação", value=dados_extraidos.get("classificacao", ""), disabled=True)
                 data_termino_edit = st.text_input("Data de Término", value=dados_extraidos.get("data_termino_proj", ""))
                 instrumento_juridico_edit = st.text_input("Instrumento Jurídico (Excel)", value=dados_extraidos.get("instrumento_juridico_pdf", ""))
                 resultados = st.text_area("Resultados Esperados", value=dados_extraidos.get("resultados", ""), height=120)
-                metas = st.text_area("Metas do Projeto (Opcional)", placeholder="Digite as metas do projeto...", height=120)
+                metas = st.text_area("Metas do Projeto", value=dados_extraidos.get("metas", ""), height=120)
 
         st.markdown("---")
         st.subheader("👨‍🏫 Coordenador e Fiscal do Projeto")
@@ -527,7 +554,7 @@ with aba_gerador:
 
             equipe_final = dados_extraidos["equipe_raw"].copy()
             if f_nome and not any(e["SIAPE"] == f_siape for e in equipe_final):
-                equipe_final.append({"Nome": f_nome, "SIAPE": f_siape, "Vínculo": "Docente", "Lotação": "DEPARTAMENTO", "Função": "Fiscal", "CH_D": "0", "CH_F": "0", "Bolsa": "Não", "Início": "", "Término": "", "Chefia Imediata": "", "SIAPE Chefia": ""})
+                equipe_final.append({"Nome": f_nome, "SIAPE": f_siape, "Vínculo": "Docente", "Lotação": "DEPARTAMENTO", "Função": "Fiscal", "CH_D": "0", "CH_F": "0", "Bolsa": "Não", "Início": "", "Término": "", "Chefia Imediata": dados_extraidos.get("chefe_nome", ""), "SIAPE Chefia": dados_extraidos.get("chefe_siape", "")})
 
             df_equipe = pd.DataFrame(equipe_final).fillna("")
             df_equipe_edit = st.data_editor(df_equipe, num_rows="dynamic", key="ed_equipe", use_container_width=True)
@@ -965,4 +992,4 @@ with aba_gerador:
         )
 
 st.markdown("<br><hr>", unsafe_allow_html=True)
-st.markdown("<div style='text-align: center; color: #888888; padding: 10px; font-size: 14px;'>⚡ <b>Raichu Pro V3.0 (Ecossistema Completo)</b> | Desenvolvido por Julio Maia 👨‍💻</div>", unsafe_allow_html=True)
+st.markdown("<div style='text-align: center; color: #888888; padding: 10px; font-size: 14px;'>⚡ <b>Raichu Pro V4.0 (Automação Multi-Relatórios)</b> | Desenvolvido por Julio Maia 👨‍💻</div>", unsafe_allow_html=True)
