@@ -47,7 +47,7 @@ with aba_inicio:
     with col_side:
         with st.container(border=True):
             st.markdown("### ℹ️ Informações da Versão")
-            st.markdown("**Versão:** 4.3.0 (Scanner de Coordenador Adm. e Blindagem Total)")
+            st.markdown("**Versão:** 4.6.0 (Cronograma Físico Automático)")
             st.markdown("**Desenvolvido por:** Julio Maia dos Santos - Estudante de graduação em Engenharia Elétrica 👨‍💻⚡")
             st.markdown("**Arquitetura:** Python Nativo (Streamlit Cloud)")
             st.divider()
@@ -152,7 +152,7 @@ with aba_gerador:
         "instrumento_juridico_pdf": "", "diretor_nome": "", "diretor_siape": "", 
         "chefe_nome": "", "chefe_siape": "", "justificativa_fund": "", "metas": "",
         "coord_adm_nome": "", "coord_adm_siape": "",
-        "classificacoes_raw": [], "equipe_raw": [], "unidades_raw": [], "regioes_raw": [],
+        "classificacoes_raw": [], "equipe_raw": [], "unidades_raw": [], "regioes_raw": [], "metas_fatiadas": [],
         "fundacao_sugerida": "FATEC", "tipo_processo_sugerido": "Acordo de Cooperação Técnica (ACT)"
     }
 
@@ -252,7 +252,32 @@ with aba_gerador:
             if just_fund: dados_extraidos["justificativa_fund"] = limpar_texto_bloco(just_fund)
 
             metas_txt = extrair_bloco(r'METAS\n', [r'\| PLANO DE', r'NÚMERO', r'PARTICIPANTES\n', r'UNIDADES VINCULADAS'])
-            if metas_txt: dados_extraidos["metas"] = limpar_texto_bloco(metas_txt)
+            if metas_txt: 
+                dados_extraidos["metas"] = limpar_texto_bloco(metas_txt)
+                # FATIADOR DE METAS PARA EXCEL
+                parsed_metas = []
+                current_meta = ""
+                lines = metas_txt.split('\n')
+                for i, line in enumerate(lines):
+                    line = line.strip()
+                    if not line: continue
+                    m_meta = re.match(r'^(M\d+)\s*[-]*\s*(.*)', line, re.IGNORECASE)
+                    if m_meta:
+                        current_meta = m_meta.group(1).upper()
+                        continue
+                    m_fase = re.match(r'^(F\d+)\s*[-]*\s*(.*)', line, re.IGNORECASE)
+                    if m_fase:
+                        fase_num = m_fase.group(1).upper()
+                        fase_desc = m_fase.group(2).strip()
+                        inicio, termino = "", ""
+                        for j in range(i+1, min(i+6, len(lines))):
+                            m_date = re.search(r'(\d{2}/\d{2}/\d{4})\s*a\s*(\d{2}/\d{2}/\d{4})', lines[j])
+                            if m_date:
+                                inicio = m_date.group(1)
+                                termino = m_date.group(2)
+                                break
+                        parsed_metas.append({"Meta": current_meta, "Fase": fase_num, "Descricao": fase_desc, "Inicio": inicio, "Termino": termino})
+                dados_extraidos["metas_fatiadas"] = parsed_metas
 
             cabecalho_combinado = r'PLANO DE GESTÃO\s*(?:-?\s*)?OBJETIVO ESTRATÉGICO'
             gestao_combined_raw = extrair_bloco(cabecalho_combinado, [r'\n\s*INOVAÇÃO', r'PROJETO POSSUI POTENCIAL', r'PROJETO POSSUI'])
@@ -716,20 +741,46 @@ with aba_gerador:
                                     escrever_excel("A50", justificativa)
                                     escrever_excel("A54", resultados)
 
+                                # =========================================================
+                                # 🔥 MAGIA DA SEÇÃO 5.1 (Mantendo a orientação para o professor)
+                                # =========================================================
+                                def encontrar_linha_geral(planilha, texto_busca, min_row, max_row, cols=[1, 2, 3, 7, 8]):
+                                    for r in range(min_row, max_row):
+                                        for c in cols:
+                                            val = str(planilha.cell(row=r, column=c).value).strip()
+                                            if texto_busca.lower() in val.lower():
+                                                return r
+                                    return None
+
+                                linha_desc = encontrar_linha_geral(ws, "Descrição das atividades de cada membro", 200, 450)
+                                if linha_desc:
+                                    linha_nome = linha_desc + 1
+                                    nomes_5_1 = [m["Nome"] for m in equipe_final if str(m.get("Nome", "")).strip() != ""]
+                                                
+                                    for i, nome_membro in enumerate(nomes_5_1):
+                                        if i < 14:
+                                            try: ws.cell(row=linha_nome + i, column=1).value = nome_membro
+                                            except: pass
+
+                                # =========================================================
+                                # 🔥 INJEÇÃO DAS METAS (CRONOGRAMA DE EXECUÇÃO FÍSICO)
+                                # =========================================================
+                                linha_inicio_metas = encontrar_linha_geral(ws, "(descreva aqui a fase", 300, 400, cols=[4])
+                                if linha_inicio_metas and "metas_fatiadas" in dados_extraidos:
+                                    for i, m_fatiada in enumerate(dados_extraidos["metas_fatiadas"]):
+                                        if i < 13: # Evita corromper a planilha se o projeto tiver mais de 13 fases
+                                            escrever_excel(f"A{linha_inicio_metas + i}", m_fatiada["Meta"])
+                                            escrever_excel(f"C{linha_inicio_metas + i}", m_fatiada["Fase"])
+                                            escrever_excel(f"D{linha_inicio_metas + i}", m_fatiada["Descricao"])
+                                            escrever_excel(f"K{linha_inicio_metas + i}", m_fatiada["Inicio"])
+                                            escrever_excel(f"L{linha_inicio_metas + i}", m_fatiada["Termino"])
+
                                 # ==========================================================================
                                 # 🔥 INJEÇÃO DOS DADOS FINANCEIROS & BLINDAGEM DA PLANILHA 🔥
                                 # ==========================================================================
                                 if arquivo_financeiro:
                                     try:
                                         wb_fin = openpyxl.load_workbook(arquivo_financeiro, data_only=True)
-                                        
-                                        def encontrar_linha(planilha, texto_busca, min_row, max_row, cols=[1, 2, 3, 7, 8]):
-                                            for r in range(min_row, max_row):
-                                                for c in cols:
-                                                    val = str(planilha.cell(row=r, column=c).value).strip()
-                                                    if texto_busca.lower() in val.lower():
-                                                        return r
-                                            return None
 
                                         def injetar_aba_dinamica(nome_aba, linha_inicio, cols_destino):
                                             if nome_aba not in wb_fin.sheetnames or not linha_inicio: return
@@ -744,7 +795,6 @@ with aba_gerador:
                                                         escrever_excel(coordenada, row[idx])
                                                 linha_atual += 1
 
-                                        # Lendo a configuração geral
                                         tipo_crono = "Mensal"
                                         total_geral_projeto = 0.0
                                         if "Config_Raichu" in wb_fin.sheetnames:
@@ -754,14 +804,13 @@ with aba_gerador:
                                                     try: total_geral_projeto = float(row[1])
                                                     except: pass
 
-                                        # 1. Encontra o início das Equipes e Anexos dinamicamente
-                                        linha_vinc_busca = encontrar_linha(ws, "TIPO DE REMUNERAÇÃO", 100, 160)
+                                        linha_vinc_busca = encontrar_linha_geral(ws, "TIPO DE REMUNERAÇÃO", 100, 160)
                                         linha_vinc = linha_vinc_busca + 2 if linha_vinc_busca else (115 if fund_sigla in ["FDMS", "FATEC"] else 117)
 
-                                        linha_nao_vinc_busca = encontrar_linha(ws, "FORMA DE CONTRATAÇÃO", 130, 200)
+                                        linha_nao_vinc_busca = encontrar_linha_geral(ws, "FORMA DE CONTRATAÇÃO", 130, 200)
                                         linha_nao_vinc = linha_nao_vinc_busca + 2 if linha_nao_vinc_busca else (150 if fund_sigla in ["FDMS", "FATEC"] else 152)
 
-                                        linha_anexo_busca = encontrar_linha(ws, "ESPECIFICAÇÃO", 280, 450)
+                                        linha_anexo_busca = encontrar_linha_geral(ws, "ESPECIFICAÇÃO", 280, 450)
                                         linha_anexo = linha_anexo_busca + 1 if linha_anexo_busca else (300 if fund_sigla in ["FDMS", "FATEC"] else 399)
 
                                         cols_equipe = [1, 3, 6, 8, 9, 10, 11, 12]
@@ -771,7 +820,6 @@ with aba_gerador:
                                         injetar_aba_dinamica("Equipe_Nao_Vinc", linha_nao_vinc, cols_equipe)
                                         injetar_aba_dinamica("Anexo_1", linha_anexo, cols_anexo)
                                         
-                                        # 2. Processa Tabelas Fixas (Despesas / 3.2 Usos)
                                         somas_categorias = {
                                             "DESPESAS DE CUSTEIO": 0.0, "DESPESAS DE CAPITAL": 0.0, 
                                             "4.2 - Diárias": 0.0, "4.3 - Serviços de Terceiros Pessoa Jurídica": 0.0,
@@ -812,7 +860,7 @@ with aba_gerador:
 
                                         for cat_name, soma_val in somas_categorias.items():
                                             if soma_val > 0:
-                                                linha_cat = encontrar_linha(ws, cat_name, 80, 350)
+                                                linha_cat = encontrar_linha_geral(ws, cat_name, 80, 350)
                                                 if linha_cat: 
                                                     escrever_excel(f"K{linha_cat}", soma_val)
 
@@ -824,40 +872,37 @@ with aba_gerador:
                                                         escrever_excel(f"K{row_idx}", valores_fixos[cell_txt])
                                                         break 
                                                             
-                                        # =========================================================
-                                        # 3. NOVAS SEÇÕES DINÂMICAS E CRONOGRAMA
-                                        # =========================================================
                                         if "Fontes_3.1" in wb_fin.sheetnames:
                                             for row in wb_fin["Fontes_3.1"].iter_rows(min_row=2, values_only=True):
                                                 fonte, check, tit_f, reg_f = row[0], row[1], row[2], row[3]
                                                 if check == "X":
-                                                    linha_f = encontrar_linha(ws, fonte[:30], 60, 100) 
+                                                    linha_f = encontrar_linha_geral(ws, fonte[:30], 60, 100) 
                                                     if linha_f:
                                                         escrever_excel(f"A{linha_f}", "X")
                                                         escrever_excel(f"K{linha_f}", total_geral_projeto)
                                                         if "prestação de serviços abaixo" in fonte and tit_f:
-                                                            linha_txt_f = encontrar_linha(ws, "(Informe o título", linha_f, linha_f+4, cols=[1,2,3])
+                                                            linha_txt_f = encontrar_linha_geral(ws, "(Informe o título", linha_f, linha_f+4, cols=[1,2,3])
                                                             if linha_txt_f: 
                                                                 escrever_excel(f"B{linha_txt_f}", f"Título: {tit_f} - Registro: {reg_f}")
                                                             
                                         if "Aplicacao_4" in wb_fin.sheetnames:
                                             row_app = list(wb_fin["Aplicacao_4"].iter_rows(min_row=2, values_only=True))[0]
                                             if row_app[0] == "Sim":
-                                                linha_app = encontrar_linha(ws, "Investimento em projeto de Pesquisa", 90, 130)
+                                                linha_app = encontrar_linha_geral(ws, "Investimento em projeto de Pesquisa", 90, 130)
                                                 if linha_app:
                                                     val_app = safe_float(row_app[3]) if len(row_app) > 3 else 0.0
                                                     escrever_excel(f"K{linha_app}", val_app)
-                                                    linha_txt_app = encontrar_linha(ws, "(Informe o título", linha_app, linha_app+4, cols=[1,2,3])
+                                                    linha_txt_app = encontrar_linha_geral(ws, "(Informe o título", linha_app, linha_app+4, cols=[1,2,3])
                                                     if linha_txt_app: 
                                                         escrever_excel(f"A{linha_txt_app}", f"Título: {row_app[1]} - Registro: {row_app[2]}")
                                                 
                                         if "Cronograma_6" in wb_fin.sheetnames:
                                             valores_crono = [r[1] for r in wb_fin["Cronograma_6"].iter_rows(min_row=2, values_only=True)]
-                                            linha_base_crono = encontrar_linha(ws, "6 - CRONOGRAMA", 200, 450)
+                                            linha_base_crono = encontrar_linha_geral(ws, "6 - CRONOGRAMA", 200, 450)
                                             if linha_base_crono:
                                                 if tipo_crono == "Mensal":
-                                                    linha_ini = encontrar_linha(ws, "1.0", linha_base_crono, linha_base_crono+15, cols=[2])
-                                                    if not linha_ini: linha_ini = encontrar_linha(ws, "1", linha_base_crono, linha_base_crono+15, cols=[2])
+                                                    linha_ini = encontrar_linha_geral(ws, "1.0", linha_base_crono, linha_base_crono+15, cols=[2])
+                                                    if not linha_ini: linha_ini = encontrar_linha_geral(ws, "1", linha_base_crono, linha_base_crono+15, cols=[2])
                                                     if not linha_ini: linha_ini = 265
                                                     for i, val in enumerate(valores_crono):
                                                         val_safe = safe_float(val)
@@ -865,38 +910,17 @@ with aba_gerador:
                                                         elif i < 60: escrever_excel(f"E{linha_ini + (i - 30)}", val_safe)
                                                         
                                                 elif tipo_crono == "Semestral":
-                                                    linha_sem_1 = encontrar_linha(ws, "1º Semestre", linha_base_crono, linha_base_crono+20, cols=[8])
+                                                    linha_sem_1 = encontrar_linha_geral(ws, "1º Semestre", linha_base_crono, linha_base_crono+20, cols=[8])
                                                     if linha_sem_1:
                                                         linhas_sem = [linha_sem_1, linha_sem_1+1, linha_sem_1+4, linha_sem_1+5, linha_sem_1+8, linha_sem_1+9, linha_sem_1+12, linha_sem_1+13, linha_sem_1+16, linha_sem_1+17]
                                                         for i, val in enumerate(valores_crono):
                                                             if i < len(linhas_sem): escrever_excel(f"J{linhas_sem[i]}", safe_float(val))
                                                             
                                                 elif tipo_crono == "Anual":
-                                                    linha_ano_1 = encontrar_linha(ws, "ANO 1", linha_base_crono, linha_base_crono+40, cols=[7, 8])
+                                                    linha_ano_1 = encontrar_linha_geral(ws, "ANO 1", linha_base_crono, linha_base_crono+40, cols=[7, 8])
                                                     if linha_ano_1:
                                                         for i, val in enumerate(valores_crono):
                                                             if i < 5: escrever_excel(f"I{linha_ano_1 + i}", safe_float(val))
-
-                                        # =========================================================
-                                        # 🔥 MAGIA DA SEÇÃO 5.1 DESCRIÇÃO DAS ATIVIDADES
-                                        # =========================================================
-                                        linha_desc = encontrar_linha(ws, "Descrição das atividades de cada membro", 200, 450)
-                                        if linha_desc:
-                                            linha_nome = linha_desc + 1
-                                            nomes_5_1 = []
-                                            if "Equipe_Vinc" in wb_fin.sheetnames:
-                                                for row in wb_fin["Equipe_Vinc"].iter_rows(min_row=2, values_only=True):
-                                                    if row[0] != "Nenhum item cadastrado" and row[1]: nomes_5_1.append(row[1])
-                                            if "Equipe_Nao_Vinc" in wb_fin.sheetnames:
-                                                for row in wb_fin["Equipe_Nao_Vinc"].iter_rows(min_row=2, values_only=True):
-                                                    if row[0] != "Nenhum item cadastrado" and row[1]: nomes_5_1.append(row[1])
-                                                        
-                                            for i, nome_membro in enumerate(nomes_5_1):
-                                                if i < 14: # A planilha tem exatos 14 espaços de nome, isso evita corromper o layout
-                                                    try:
-                                                        ws.cell(row=linha_nome + i, column=1).value = nome_membro
-                                                        ws.cell(row=linha_nome + i, column=2).value = "" # Apaga o texto cinza para ficar limpo pro Prof.
-                                                    except: pass
 
                                         ws.protection.sheet = True
                                         ws.protection.set_password("ufsm2026")
@@ -935,4 +959,4 @@ with aba_gerador:
         )
 
 st.markdown("<br><hr>", unsafe_allow_html=True)
-st.markdown("<div style='text-align: center; color: #888888; padding: 10px; font-size: 14px;'>⚡ <b>Raichu Pro V4.4 (Blindagem Total de Parâmetros)</b> | Desenvolvido por Julio Maia 👨‍💻</div>", unsafe_allow_html=True)
+st.markdown("<div style='text-align: center; color: #888888; padding: 10px; font-size: 14px;'>⚡ <b>Raichu Pro V4.6 (Cronograma Físico Automático)</b> | Desenvolvido por Julio Maia 👨‍💻</div>", unsafe_allow_html=True)
