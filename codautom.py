@@ -47,7 +47,7 @@ with aba_inicio:
     with col_side:
         with st.container(border=True):
             st.markdown("### ℹ️ Informações da Versão")
-            st.markdown("**Versão:** 4.6.0 (Cronograma Físico Automático)")
+            st.markdown("**Versão:** 4.7.0 (Cronograma de Metas Formatado)")
             st.markdown("**Desenvolvido por:** Julio Maia dos Santos - Estudante de graduação em Engenharia Elétrica 👨‍💻⚡")
             st.markdown("**Arquitetura:** Python Nativo (Streamlit Cloud)")
             st.divider()
@@ -254,22 +254,31 @@ with aba_gerador:
             metas_txt = extrair_bloco(r'METAS\n', [r'\| PLANO DE', r'NÚMERO', r'PARTICIPANTES\n', r'UNIDADES VINCULADAS'])
             if metas_txt: 
                 dados_extraidos["metas"] = limpar_texto_bloco(metas_txt)
-                # FATIADOR DE METAS PARA EXCEL
+                
+                # FATIADOR DE METAS PARA EXCEL - VERSÃO COM LAYOUT HIERÁRQUICO
                 parsed_metas = []
                 current_meta = ""
                 lines = metas_txt.split('\n')
                 for i, line in enumerate(lines):
                     line = line.strip()
                     if not line: continue
+                    
+                    # Identifica as Metas principais (M1, M2...)
                     m_meta = re.match(r'^(M\d+)\s*[-]*\s*(.*)', line, re.IGNORECASE)
-                    if m_meta and not linha.startswith("F"):
+                    if m_meta and not line.upper().startswith("F"):
                         current_meta = m_meta.group(0).strip()
+                        if not re.match(r'^M\d+\s*-', current_meta, re.IGNORECASE):
+                            current_meta = re.sub(r'^(M\d+)\s+', r'\1 - ', current_meta, flags=re.IGNORECASE)
                         continue
+                        
+                    # Identifica as Fases da meta (F1, F2...)
                     m_fase = re.match(r'^(F\d+)\s*[-]*\s*(.*)', line, re.IGNORECASE)
                     if m_fase:
                         fase_num = m_fase.group(1).upper()
                         fase_desc = m_fase.group(2).strip()
                         inicio, termino = "", ""
+                        
+                        # Extrai as datas que podem estar na mesma linha ou logo abaixo
                         m_date = re.search(r'(\d{2}/\d{2}/\d{4})\s*a\s*(\d{2}/\d{2}/\d{4})', line)
                         if m_date:
                             inicio = m_date.group(1)
@@ -281,8 +290,15 @@ with aba_gerador:
                                     inicio = m_date.group(1)
                                     termino = m_date.group(2)
                                     break
-                        parsed_metas.append({"Meta": current_meta, "Fase": fase_num, "Descricao": fase_desc, "Inicio": inicio, "Termino": termino})
-                        current_meta = "" # Limpa para a próxima fase vir vazia se for a mesma meta
+                                    
+                        parsed_metas.append({
+                            "Meta": current_meta, 
+                            "Fase": fase_num, 
+                            "Descricao": fase_desc, 
+                            "Inicio": inicio, 
+                            "Termino": termino
+                        })
+                        current_meta = "" # Limpa a Meta para a próxima fase vir em branco (Hierarquia Visual)
                 dados_extraidos["metas_fatiadas"] = parsed_metas
 
             cabecalho_combinado = r'PLANO DE GESTÃO\s*(?:-?\s*)?OBJETIVO ESTRATÉGICO'
@@ -965,4 +981,4 @@ with aba_gerador:
         )
 
 st.markdown("<br><hr>", unsafe_allow_html=True)
-st.markdown("<div style='text-align: center; color: #888888; padding: 10px; font-size: 14px;'>⚡ <b>Raichu Pro V4.6 (Cronograma Físico Automático)</b> | Desenvolvido por Julio Maia 👨‍💻</div>", unsafe_allow_html=True)
+st.markdown("<div style='text-align: center; color: #888888; padding: 10px; font-size: 14px;'>⚡ <b>Raichu Pro V4.7 (Cronograma de Metas Formatado)</b> | Desenvolvido por Julio Maia 👨‍💻</div>", unsafe_allow_html=True)
