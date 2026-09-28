@@ -47,7 +47,7 @@ with aba_inicio:
     with col_side:
         with st.container(border=True):
             st.markdown("### ℹ️ Informações da Versão")
-            st.markdown("**Versão:** 4.8.0 (Scanner de Metas OCR-Blindado)")
+            st.markdown("**Versão:** 4.9.0 (Otimização Final de Metas e Seção 5.1)")
             st.markdown("**Desenvolvido por:** Julio Maia dos Santos - Estudante de graduação em Engenharia Elétrica 👨‍💻⚡")
             st.markdown("**Arquitetura:** Python Nativo (Streamlit Cloud)")
             st.divider()
@@ -248,14 +248,15 @@ with aba_gerador:
             imp = extrair_bloco(r'Importância do projeto:', [r'Justificativa para a escolha da fundação:', r'METAS[^\n]*\n', r'\| PLANO DE'])
             if imp: dados_extraidos["importancia_projeto"] = limpar_texto_bloco(imp)
 
-            just_fund = extrair_bloco(r'Justificativa para a escolha da fundação:', [r'METAS[^\n]*\n', r'\| PLANO DE', r'NÚMERO', r'PARTICIP'])
+            just_fund = extrair_bloco(r'Justificativa para a escolha da fundação:', [r'METAS[^\n]*\n', r'\| PLANO DE', r'NÚMERO', r'(?i)PARTICIP'])
             if just_fund: dados_extraidos["justificativa_fund"] = limpar_texto_bloco(just_fund)
 
-            metas_txt = extrair_bloco(r'METAS[^\n]*\n', [r'\| PLANO DE', r'NÚMERO', r'PARTICIP', r'UNIDADES VINCULADAS'])
+            # EXTRAÇÃO OTIMIZADA DAS METAS CONTRA RUÍDOS DE OCR DA UFSM
+            metas_txt = extrair_bloco(r'METAS[^\n]*\n', [r'\| PLANO DE', r'NÚMERO', r'(?i)PARTICIP', r'UNIDADES VINCULADAS'])
             if metas_txt: 
                 dados_extraidos["metas"] = limpar_texto_bloco(metas_txt)
                 
-                # FATIADOR DE METAS PARA EXCEL - BLINDADO CONTRA RUÍDOS DE OCR
+                # FATIADOR DE METAS PARA EXCEL - VERSÃO COM LAYOUT HIERÁRQUICO
                 parsed_metas = []
                 current_meta = ""
                 lines = metas_txt.split('\n')
@@ -267,7 +268,7 @@ with aba_gerador:
                     m_meta = re.match(r'^(M\d+)\s*[-]*\s*(.*)', line, re.IGNORECASE)
                     if m_meta and not line.upper().startswith("F"):
                         current_meta = m_meta.group(0).strip()
-                        current_meta = re.sub(r'\s*\d{2}/\d{2}/\d{4}.*$', '', current_meta).strip() # Limpa sujeira de datas
+                        current_meta = re.sub(r'\s*\d{2}/\d{2}/\d{4}.*$', '', current_meta).strip() # Limpa sujeira de datas e % do OCR
                         if not re.match(r'^M\d+\s*-', current_meta, re.IGNORECASE):
                             current_meta = re.sub(r'^(M\d+)\s+', r'\1 - ', current_meta, flags=re.IGNORECASE)
                         continue
@@ -277,7 +278,7 @@ with aba_gerador:
                     if m_fase:
                         fase_num = m_fase.group(1).upper()
                         fase_desc = m_fase.group(2).strip()
-                        fase_desc = re.sub(r'\s*\d{2}/\d{2}/\d{4}.*$', '', fase_desc).strip() # Limpa sujeira de datas
+                        fase_desc = re.sub(r'\s*\d{2}/\d{2}/\d{4}.*$', '', fase_desc).strip() # Limpa sujeira de datas e % do OCR
                         
                         inicio, termino = "", ""
                         # Extrai as datas que podem estar na mesma linha ou logo abaixo
@@ -343,7 +344,7 @@ with aba_gerador:
             # =========================================================
             # 🔥 NOVO SCANNER BLINDADO DE EQUIPE COM CHEFIAS
             # =========================================================
-            bloco_participantes = extrair_bloco(r'PARTICIPANTES', [r'UNIDADES VINCULADAS\s*\n', r'CLASSIFICAÇÕES', r'REGIÕES DE ATUAÇÃO'])
+            bloco_participantes = extrair_bloco(r'(?i)PARTICIPAN?T?E?', [r'UNIDADES VINCULADAS\s*\n', r'CLASSIFICAÇÕES', r'REGIÕES DE ATUAÇÃO'])
             if not bloco_participantes:
                 bloco_participantes = texto_limpo
 
@@ -765,9 +766,6 @@ with aba_gerador:
                                     escrever_excel("A50", justificativa)
                                     escrever_excel("A54", resultados)
 
-                                # =========================================================
-                                # 🔥 SEÇÃO 5.1 (Apenas nomes, sem apagar o texto-guia)
-                                # =========================================================
                                 def encontrar_linha_geral(planilha, texto_busca, min_row, max_row, cols=[1, 2, 3, 7, 8]):
                                     for r in range(min_row, max_row):
                                         for c in cols:
@@ -775,16 +773,6 @@ with aba_gerador:
                                             if texto_busca.lower() in val.lower():
                                                 return r
                                     return None
-
-                                linha_desc = encontrar_linha_geral(ws, "Descrição das atividades de cada membro", 200, 450)
-                                if linha_desc:
-                                    linha_nome = linha_desc + 1
-                                    nomes_5_1 = [m["Nome"] for m in equipe_final if str(m.get("Nome", "")).strip() != ""]
-                                                
-                                    for i, nome_membro in enumerate(nomes_5_1):
-                                        if i < 14:
-                                            try: ws.cell(row=linha_nome + i, column=1).value = nome_membro
-                                            except: pass
 
                                 # =========================================================
                                 # 🔥 INJEÇÃO DAS METAS (CRONOGRAMA FÍSICO AUTOMÁTICO)
@@ -983,4 +971,4 @@ with aba_gerador:
         )
 
 st.markdown("<br><hr>", unsafe_allow_html=True)
-st.markdown("<div style='text-align: center; color: #888888; padding: 10px; font-size: 14px;'>⚡ <b>Raichu Pro V4.8 (Scanner de Metas OCR-Blindado)</b> | Desenvolvido por Julio Maia 👨‍💻</div>", unsafe_allow_html=True)
+st.markdown("<div style='text-align: center; color: #888888; padding: 10px; font-size: 14px;'>⚡ <b>Raichu Pro V4.9 (Otimização Final de Metas e Seção 5.1)</b> | Desenvolvido por Julio Maia 👨‍💻</div>", unsafe_allow_html=True)
