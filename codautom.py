@@ -47,7 +47,7 @@ with aba_inicio:
     with col_side:
         with st.container(border=True):
             st.markdown("### ℹ️ Informações da Versão")
-            st.markdown("**Versão:** 4.2.0 (Scanner de Chefias Diretas)")
+            st.markdown("**Versão:** 4.3.0 (Scanner de Coordenador Adm. e Blindagem Total)")
             st.markdown("**Desenvolvido por:** Julio Maia dos Santos - Estudante de graduação em Engenharia Elétrica 👨‍💻⚡")
             st.markdown("**Arquitetura:** Python Nativo (Streamlit Cloud)")
             st.divider()
@@ -151,6 +151,7 @@ with aba_gerador:
         "plano_gestao": "", "objetivo_estrategico": "", "inovacao_bool": "", "inovacao_potencial": "",
         "instrumento_juridico_pdf": "", "diretor_nome": "", "diretor_siape": "", 
         "chefe_nome": "", "chefe_siape": "", "justificativa_fund": "", "metas": "",
+        "coord_adm_nome": "", "coord_adm_siape": "",
         "classificacoes_raw": [], "equipe_raw": [], "unidades_raw": [], "regioes_raw": [],
         "fundacao_sugerida": "FATEC", "tipo_processo_sugerido": "Acordo de Cooperação Técnica (ACT)"
     }
@@ -221,6 +222,11 @@ with aba_gerador:
             if m_chefe:
                 dados_extraidos["chefe_nome"] = m_chefe.group(1).strip()
                 dados_extraidos["chefe_siape"] = m_chefe.group(2).strip()
+                
+            m_adm = re.search(r'Coordenador\(es\) administrativo\(s\):\s*(.*?)\s*\(\s*(\d+)\s*\)', texto_limpo, re.IGNORECASE)
+            if m_adm:
+                dados_extraidos["coord_adm_nome"] = m_adm.group(1).strip()
+                dados_extraidos["coord_adm_siape"] = m_adm.group(2).strip()
 
             def extrair_bloco(inicio_regex, fins_regex):
                 m_inicio = re.search(inicio_regex, texto_limpo, re.IGNORECASE)
@@ -458,8 +464,8 @@ with aba_gerador:
 
         st.markdown("---")
         col_adm1, col_adm2 = st.columns(2)
-        nome_coord_adm = col_adm1.text_input("Coordenador Administrativo")
-        siape_coord_adm = col_adm2.text_input("SIAPE Coord. Adm.")
+        nome_coord_adm = col_adm1.text_input("Coordenador Administrativo", value=dados_extraidos.get("coord_adm_nome", ""))
+        siape_coord_adm = col_adm2.text_input("SIAPE Coord. Adm.", value=dados_extraidos.get("coord_adm_siape", ""))
 
         st.markdown("---")
         st.subheader("🏢 Empresas / Parceiras")
@@ -929,4 +935,4 @@ with aba_gerador:
         )
 
 st.markdown("<br><hr>", unsafe_allow_html=True)
-st.markdown("<div style='text-align: center; color: #888888; padding: 10px; font-size: 14px;'>⚡ <b>Raichu Pro V4.2 (Scanner de Chefias Diretas)</b> | Desenvolvido por Julio Maia 👨‍💻</div>", unsafe_allow_html=True)
+st.markdown("<div style='text-align: center; color: #888888; padding: 10px; font-size: 14px;'>⚡ <b>Raichu Pro V4.4 (Blindagem Total de Parâmetros)</b> | Desenvolvido por Julio Maia 👨‍💻</div>", unsafe_allow_html=True)
