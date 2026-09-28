@@ -262,21 +262,27 @@ with aba_gerador:
                     line = line.strip()
                     if not line: continue
                     m_meta = re.match(r'^(M\d+)\s*[-]*\s*(.*)', line, re.IGNORECASE)
-                    if m_meta:
-                        current_meta = m_meta.group(1).upper()
+                    if m_meta and not linha.startswith("F"):
+                        current_meta = m_meta.group(0).strip()
                         continue
                     m_fase = re.match(r'^(F\d+)\s*[-]*\s*(.*)', line, re.IGNORECASE)
                     if m_fase:
                         fase_num = m_fase.group(1).upper()
                         fase_desc = m_fase.group(2).strip()
                         inicio, termino = "", ""
-                        for j in range(i+1, min(i+6, len(lines))):
-                            m_date = re.search(r'(\d{2}/\d{2}/\d{4})\s*a\s*(\d{2}/\d{2}/\d{4})', lines[j])
-                            if m_date:
-                                inicio = m_date.group(1)
-                                termino = m_date.group(2)
-                                break
+                        m_date = re.search(r'(\d{2}/\d{2}/\d{4})\s*a\s*(\d{2}/\d{2}/\d{4})', line)
+                        if m_date:
+                            inicio = m_date.group(1)
+                            termino = m_date.group(2)
+                        else:
+                            for j in range(i+1, min(i+15, len(lines))):
+                                m_date = re.search(r'(\d{2}/\d{2}/\d{4})\s*a\s*(\d{2}/\d{2}/\d{4})', lines[j])
+                                if m_date:
+                                    inicio = m_date.group(1)
+                                    termino = m_date.group(2)
+                                    break
                         parsed_metas.append({"Meta": current_meta, "Fase": fase_num, "Descricao": fase_desc, "Inicio": inicio, "Termino": termino})
+                        current_meta = "" # Limpa para a próxima fase vir vazia se for a mesma meta
                 dados_extraidos["metas_fatiadas"] = parsed_metas
 
             cabecalho_combinado = r'PLANO DE GESTÃO\s*(?:-?\s*)?OBJETIVO ESTRATÉGICO'
@@ -742,7 +748,7 @@ with aba_gerador:
                                     escrever_excel("A54", resultados)
 
                                 # =========================================================
-                                # 🔥 MAGIA DA SEÇÃO 5.1 (Mantendo a orientação para o professor)
+                                # 🔥 SEÇÃO 5.1 (Apenas nomes, sem apagar o texto-guia)
                                 # =========================================================
                                 def encontrar_linha_geral(planilha, texto_busca, min_row, max_row, cols=[1, 2, 3, 7, 8]):
                                     for r in range(min_row, max_row):
@@ -763,12 +769,12 @@ with aba_gerador:
                                             except: pass
 
                                 # =========================================================
-                                # 🔥 INJEÇÃO DAS METAS (CRONOGRAMA DE EXECUÇÃO FÍSICO)
+                                # 🔥 INJEÇÃO DAS METAS (CRONOGRAMA FÍSICO AUTOMÁTICO)
                                 # =========================================================
                                 linha_inicio_metas = encontrar_linha_geral(ws, "(descreva aqui a fase", 300, 400, cols=[4])
                                 if linha_inicio_metas and "metas_fatiadas" in dados_extraidos:
                                     for i, m_fatiada in enumerate(dados_extraidos["metas_fatiadas"]):
-                                        if i < 13: # Evita corromper a planilha se o projeto tiver mais de 13 fases
+                                        if i < 13: # Evita corromper a formatação além do espaço disponível na tabela
                                             escrever_excel(f"A{linha_inicio_metas + i}", m_fatiada["Meta"])
                                             escrever_excel(f"C{linha_inicio_metas + i}", m_fatiada["Fase"])
                                             escrever_excel(f"D{linha_inicio_metas + i}", m_fatiada["Descricao"])
