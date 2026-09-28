@@ -47,7 +47,7 @@ with aba_inicio:
     with col_side:
         with st.container(border=True):
             st.markdown("### ℹ️ Informações da Versão")
-            st.markdown("**Versão:** 4.0.0 (Automação Total Multi-Relatórios)")
+            st.markdown("**Versão:** 4.1.0 (Automação Multi-Relatórios + Seção 5.1)")
             st.markdown("**Desenvolvido por:** Julio Maia dos Santos - Estudante de graduação em Engenharia Elétrica 👨‍💻⚡")
             st.markdown("**Arquitetura:** Python Nativo (Streamlit Cloud)")
             st.divider()
@@ -204,7 +204,6 @@ with aba_gerador:
             dados_extraidos["empresa"] = extrair(r'(?:Financiador[a]?|Empresa|Cooperante|Financiador|Instituição):\s*(.*?)\n')
             dados_extraidos["instrumento_juridico_pdf"] = extrair(r'Instrumento jurídico celebrado:\s*([^\n]+)')
 
-            # EXTRAÇÃO DE NOMES, CHEFIAS E DIRETORES
             m_coord = re.search(r'Responsável pelo projeto:\s*(.*?)\s*\(\s*(\d+)\s*\)', texto_limpo, re.IGNORECASE)
             if not m_coord: m_coord = re.search(r'Responsável pelo projeto:\s*\nNome:\s*(.*?)\s*\(\s*(\d+)\s*\)', texto_limpo, re.IGNORECASE)
             if m_coord: dados_extraidos["coord_geral_pdf"] = {"nome": m_coord.group(1).strip(), "siape": m_coord.group(2).strip()}
@@ -239,7 +238,6 @@ with aba_gerador:
             dados_extraidos["justificativa_proj"] = limpar_texto_bloco(extrair_bloco(r'Justificativa:', [r'Resultados esperados:']))
             dados_extraidos["resultados"] = limpar_texto_bloco(extrair_bloco(r'Resultados esperados:', [r'PARTICIPANTES', r'PLANO DE GESTÃO', r'UNIDADES VINCULADAS']))
             
-            # NOVOS BLOCOS DE DADOS
             imp = extrair_bloco(r'Importância do projeto:', [r'Justificativa para a escolha da fundação:', r'METAS\n', r'\| PLANO DE'])
             if imp: dados_extraidos["importancia_projeto"] = limpar_texto_bloco(imp)
 
@@ -614,12 +612,7 @@ with aba_gerador:
                     "membros": equipe_final, "objetivos": objetivos, "metas": metas,
                     "justificativa": justificativa, "resultados": resultados,
                     "importancia_projeto": importancia, "importanciaprojeto": importancia,
-                    
-                    # CORREÇÃO CRÍTICA AQUI: Inserido o nome exato da TAG da FATEC!
-                    "justificativa_fundacao": justificativa_fund,
-                    "justificativa_fund": justificativa_fund, 
-                    "justificativafund": justificativa_fund,
-                    
+                    "justificativa_fundacao": justificativa_fund, "justificativa_fund": justificativa_fund, "justificativafund": justificativa_fund,
                     "diretor_unidade": diretor_unidade, "diretorunidade": diretor_unidade,
                     "siape_diretor": siape_diretor, "siapediretor": siape_diretor
                 }
@@ -704,7 +697,6 @@ with aba_gerador:
                                 wb = openpyxl.load_workbook(caminho_excel)
                                 ws = wb["Plano de Trabalho"] if "Plano de Trabalho" in wb.sheetnames else wb.worksheets[0]
 
-                                # INJEÇÃO BLINDADA: Preserva O R$, Mantém a Cor, e Nunca Desmescla!
                                 def escrever_excel(celula, valor):
                                     if valor in ["", "-", "None", "Não se aplica", None]: 
                                         valor_final = None
@@ -725,7 +717,6 @@ with aba_gerador:
                                             if altura_atual is None or altura_calculada > altura_atual:
                                                 ws.row_dimensions[r_row].height = altura_calculada
 
-                                        # Apenas atira o valor na primeira célula da mescla - mantendo o estilo 100% puro do Excel
                                         for merged_range in list(ws.merged_cells.ranges):
                                             min_col, min_row, max_col, max_row = merged_range.bounds
                                             if min_col <= r_col <= max_col and min_row <= r_row <= max_row:
@@ -834,9 +825,8 @@ with aba_gerador:
                                         linha_anexo_busca = encontrar_linha(ws, "ESPECIFICAÇÃO", 280, 450)
                                         linha_anexo = linha_anexo_busca + 1 if linha_anexo_busca else (300 if fund_sigla in ["FDMS", "FATEC"] else 399)
 
-                                        # COLUNAS CORRIGIDAS (Alinhado com FATEC e FUNDEP)
                                         cols_equipe = [1, 3, 6, 8, 9, 10, 11, 12]
-                                        cols_anexo = [3, 8, 9, 11] # Colunas C, H, I, K
+                                        cols_anexo = [3, 8, 9, 11]
 
                                         injetar_aba_dinamica("Equipe_Vinc", linha_vinc, cols_equipe)
                                         injetar_aba_dinamica("Equipe_Nao_Vinc", linha_nao_vinc, cols_equipe)
@@ -872,25 +862,21 @@ with aba_gerador:
                                                         except: pass
                                                 somas_categorias[nome_cat] = soma_aba
 
-                                        # Integração Segura do Custeio (Puxa os totais desde a Coluna L que é o índice 7)
                                         somas_categorias["DESPESAS DE CUSTEIO"] = sum(safe_float(item[7]) for item in wb_fin["Equipe_Vinc"].iter_rows(min_row=2, values_only=True) if item[0] != "Nenhum item cadastrado") + \
                                                                                   sum(safe_float(item[7]) for item in wb_fin["Equipe_Nao_Vinc"].iter_rows(min_row=2, values_only=True) if item[0] != "Nenhum item cadastrado") + \
                                                                                   sum([somas_categorias[c] for c in ["4.2 - Diárias", "4.3 - Serviços de Terceiros Pessoa Jurídica", "4.4 - Serviços de Terceiros - Pessoa Física", "4.5 - Passagens e Despesas de Locomoção", "4.6 - Material de Consumo"]])
 
-                                        # Integração Segura de Capital (Obras + Anexo 1)
                                         total_anexo1 = 0.0
                                         if "Anexo_1" in wb_fin.sheetnames:
                                             total_anexo1 = sum(safe_float(item[3]) for item in wb_fin["Anexo_1"].iter_rows(min_row=2, values_only=True) if item[0] != "Nenhum item cadastrado")
                                         somas_categorias["DESPESAS DE CAPITAL"] = somas_categorias["4.8 - Obras e Instalações"] + total_anexo1
 
-                                        # Injeta Somas nos cabeçalhos (Vasculha toda a extensão a partir da linha 80)
                                         for cat_name, soma_val in somas_categorias.items():
                                             if soma_val > 0:
                                                 linha_cat = encontrar_linha(ws, cat_name, 80, 350)
                                                 if linha_cat: 
                                                     escrever_excel(f"K{linha_cat}", soma_val)
 
-                                        # Injeta Itens Detalhados nas Subcategorias
                                         if valores_fixos:
                                             for row_idx in range(180, 350):
                                                 for col_idx in range(1, 6):
@@ -900,24 +886,21 @@ with aba_gerador:
                                                         break 
                                                             
                                         # =========================================================
-                                        # 3. NOVAS SEÇÕES DINÂMICAS: FONTES (3.1), APLICAÇÃO (4) E CRONOGRAMA (6)
+                                        # 3. NOVAS SEÇÕES DINÂMICAS E CRONOGRAMA
                                         # =========================================================
-                                        
-                                        # Seção 3.1 - FONTES
                                         if "Fontes_3.1" in wb_fin.sheetnames:
                                             for row in wb_fin["Fontes_3.1"].iter_rows(min_row=2, values_only=True):
                                                 fonte, check, tit_f, reg_f = row[0], row[1], row[2], row[3]
                                                 if check == "X":
                                                     linha_f = encontrar_linha(ws, fonte[:30], 60, 100) 
                                                     if linha_f:
-                                                        escrever_excel(f"A{linha_f}", "X") # Marca o X na Checkbox da margem A
-                                                        escrever_excel(f"K{linha_f}", total_geral_projeto) # Atira o Total na margem K
+                                                        escrever_excel(f"A{linha_f}", "X")
+                                                        escrever_excel(f"K{linha_f}", total_geral_projeto)
                                                         if "prestação de serviços abaixo" in fonte and tit_f:
                                                             linha_txt_f = encontrar_linha(ws, "(Informe o título", linha_f, linha_f+4, cols=[1,2,3])
                                                             if linha_txt_f: 
                                                                 escrever_excel(f"B{linha_txt_f}", f"Título: {tit_f} - Registro: {reg_f}")
                                                             
-                                        # Seção 4 - PLANO DE APLICAÇÃO
                                         if "Aplicacao_4" in wb_fin.sheetnames:
                                             row_app = list(wb_fin["Aplicacao_4"].iter_rows(min_row=2, values_only=True))[0]
                                             if row_app[0] == "Sim":
@@ -929,17 +912,14 @@ with aba_gerador:
                                                     if linha_txt_app: 
                                                         escrever_excel(f"A{linha_txt_app}", f"Título: {row_app[1]} - Registro: {row_app[2]}")
                                                 
-                                        # Seção 6 - CRONOGRAMA DE DESEMBOLSO
                                         if "Cronograma_6" in wb_fin.sheetnames:
                                             valores_crono = [r[1] for r in wb_fin["Cronograma_6"].iter_rows(min_row=2, values_only=True)]
                                             linha_base_crono = encontrar_linha(ws, "6 - CRONOGRAMA", 200, 450)
-                                            
                                             if linha_base_crono:
                                                 if tipo_crono == "Mensal":
                                                     linha_ini = encontrar_linha(ws, "1.0", linha_base_crono, linha_base_crono+15, cols=[2])
                                                     if not linha_ini: linha_ini = encontrar_linha(ws, "1", linha_base_crono, linha_base_crono+15, cols=[2])
                                                     if not linha_ini: linha_ini = 265
-                                                    
                                                     for i, val in enumerate(valores_crono):
                                                         val_safe = safe_float(val)
                                                         if i < 30: escrever_excel(f"C{linha_ini + i}", val_safe)
@@ -959,6 +939,25 @@ with aba_gerador:
                                                             if i < 5: escrever_excel(f"I{linha_ano_1 + i}", safe_float(val))
 
                                         # =========================================================
+                                        # 🔥 MAGIA DA SEÇÃO 5.1 DESCRIÇÃO DAS ATIVIDADES
+                                        # =========================================================
+                                        linha_desc = encontrar_linha(ws, "Descrição das atividades de cada membro", 200, 450)
+                                        if linha_desc:
+                                            linha_nome = linha_desc + 1
+                                            nomes_5_1 = []
+                                            if "Equipe_Vinc" in wb_fin.sheetnames:
+                                                for row in wb_fin["Equipe_Vinc"].iter_rows(min_row=2, values_only=True):
+                                                    if row[0] != "Nenhum item cadastrado" and row[1]: nomes_5_1.append(row[1])
+                                            if "Equipe_Nao_Vinc" in wb_fin.sheetnames:
+                                                for row in wb_fin["Equipe_Nao_Vinc"].iter_rows(min_row=2, values_only=True):
+                                                    if row[0] != "Nenhum item cadastrado" and row[1]: nomes_5_1.append(row[1])
+                                                        
+                                            for i, nome_membro in enumerate(nomes_5_1):
+                                                if i < 14: # A planilha tem exatos 14 espaços de nome, isso evita corromper o layout
+                                                    try:
+                                                        ws.cell(row=linha_nome + i, column=1).value = nome_membro
+                                                        ws.cell(row=linha_nome + i, column=2).value = "" # Apaga o texto cinza para ficar limpo pro Prof.
+                                                    except: pass
 
                                         ws.protection.sheet = True
                                         ws.protection.set_password("ufsm2026")
@@ -997,4 +996,4 @@ with aba_gerador:
         )
 
 st.markdown("<br><hr>", unsafe_allow_html=True)
-st.markdown("<div style='text-align: center; color: #888888; padding: 10px; font-size: 14px;'>⚡ <b>Raichu Pro V4.0 (Automação Multi-Relatórios)</b> | Desenvolvido por Julio Maia 👨‍💻</div>", unsafe_allow_html=True)
+st.markdown("<div style='text-align: center; color: #888888; padding: 10px; font-size: 14px;'>⚡ <b>Raichu Pro V4.1 (Automação Multi-Relatórios)</b> | Desenvolvido por Julio Maia 👨‍💻</div>", unsafe_allow_html=True)
