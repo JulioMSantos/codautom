@@ -47,7 +47,7 @@ with aba_inicio:
     with col_side:
         with st.container(border=True):
             st.markdown("### ℹ️ Informações da Versão")
-            st.markdown("**Versão:** 5.2.0 (Restauração do Laboratório)")
+            st.markdown("**Versão:** 5.3.0 (Filtro Inteligente do Fiscal)")
             st.markdown("**Desenvolvido por:** Julio Maia dos Santos - Estudante de graduação em Engenharia Elétrica 👨‍💻⚡")
             st.markdown("**Arquitetura:** Python Nativo (Streamlit Cloud)")
             st.divider()
@@ -259,24 +259,21 @@ with aba_gerador:
                     line = line.strip()
                     if not line: continue
                     
-                    # Identifica as Metas principais (M1, M2...)
                     m_meta = re.match(r'^(M\d+)\s*[-]*\s*(.*)', line, re.IGNORECASE)
                     if m_meta and not line.upper().startswith("F"):
                         current_meta = m_meta.group(0).strip()
-                        current_meta = re.sub(r'\s*\d{2}/\d{2}/\d{4}.*$', '', current_meta).strip() # Limpa sujeira de datas e % do OCR
+                        current_meta = re.sub(r'\s*\d{2}/\d{2}/\d{4}.*$', '', current_meta).strip()
                         if not re.match(r'^M\d+\s*-', current_meta, re.IGNORECASE):
                             current_meta = re.sub(r'^(M\d+)\s+', r'\1 - ', current_meta, flags=re.IGNORECASE)
                         continue
                         
-                    # Identifica as Fases da meta (F1, F2...)
                     m_fase = re.match(r'^(F\d+)\s*[-]*\s*(.*)', line, re.IGNORECASE)
                     if m_fase:
                         fase_num = m_fase.group(1).upper()
                         fase_desc = m_fase.group(2).strip()
-                        fase_desc = re.sub(r'\s*\d{2}/\d{2}/\d{4}.*$', '', fase_desc).strip() # Limpa sujeira de datas e % do OCR
+                        fase_desc = re.sub(r'\s*\d{2}/\d{2}/\d{4}.*$', '', fase_desc).strip()
                         
                         inicio, termino = "", ""
-                        # Extrai as datas que podem estar na mesma linha ou logo abaixo
                         m_date = re.search(r'(\d{2}/\d{2}/\d{4})\s*a\s*(\d{2}/\d{2}/\d{4})', line)
                         if m_date:
                             inicio = m_date.group(1)
@@ -296,7 +293,7 @@ with aba_gerador:
                             "Inicio": inicio, 
                             "Termino": termino
                         })
-                        current_meta = "" # Limpa a Meta para a próxima fase vir em branco (Hierarquia Visual)
+                        current_meta = "" 
                 dados_extraidos["metas_fatiadas"] = parsed_metas
 
             cabecalho_combinado = r'PLANO DE GESTÃO\s*(?:-?\s*)?OBJETIVO ESTRATÉGICO'
@@ -356,7 +353,6 @@ with aba_gerador:
                 
                 m_vinc = re.search(r'(Docente|Técnico[- ]Administrativo|Estudante de Pós-graduação|Estudante de Graduação|Estudante|Pesquisador|Participante Externo|Visitante|Servidor|Outro)', chunk, re.IGNORECASE)
                 
-                # Participante tem vínculo ou carga horária no seu bloco
                 if m_vinc or "CH DENTRO" in chunk or "CH FORA" in chunk:
                     vinculo = m_vinc.group(1).title().replace('- ', '-') if m_vinc else "Outro"
                     if "Técnico" in vinculo and "Administrativo" in vinculo: vinculo = "Técnico-Administrativo em Educação"
@@ -400,12 +396,10 @@ with aba_gerador:
                         "Chefia Imediata": "", "SIAPE Chefia": ""
                     })
                 else:
-                    # Se não tem vínculo, é uma Chefia que pertence ao participante de cima
                     if dados_extraidos["equipe_raw"]:
                         dados_extraidos["equipe_raw"][-1]["Chefia Imediata"] = nome.replace('PARTICIPANTE', '').strip()
                         dados_extraidos["equipe_raw"][-1]["SIAPE Chefia"] = siape
             
-            # Repassa inserindo chefias gerais nos Docentes/TAEs que ficaram sem chefe explícito
             for p in dados_extraidos["equipe_raw"]:
                 if not p.get("Chefia Imediata") and "Estudante" not in p.get("Vínculo", ""):
                     p["Chefia Imediata"] = dados_extraidos.get("chefe_nome", "")
@@ -659,6 +653,10 @@ with aba_gerador:
                                                 if membro.get("Nome") not in estudantes_ignorados_log:
                                                     estudantes_ignorados_log.append(str(membro.get("Nome")))
                                             continue 
+
+                                        # BLINDAGEM DO FISCAL: O Fiscal do projeto não assina documentos da equipe executora
+                                        if "fiscal" in funcao_membro:
+                                            continue
 
                                         ch_d_val = str(membro.get("CH_D", "0")).strip()
                                         ch_f_val = str(membro.get("CH_F", "0")).strip()
@@ -1007,4 +1005,4 @@ with aba_gerador:
         )
 
 st.markdown("<br><hr>", unsafe_allow_html=True)
-st.markdown("<div style='text-align: center; color: #888888; padding: 10px; font-size: 14px;'>⚡ <b>Raichu Pro V5.2 (Restauração do Laboratório)</b> | Desenvolvido por Julio Maia 👨‍💻</div>", unsafe_allow_html=True)
+st.markdown("<div style='text-align: center; color: #888888; padding: 10px; font-size: 14px;'>⚡ <b>Raichu Pro V5.3 (Filtro Inteligente do Fiscal)</b> | Desenvolvido por Julio Maia 👨‍💻</div>", unsafe_allow_html=True)
