@@ -4,7 +4,999 @@ from docxtpl import DocxTemplate
 from datetime import datetime
 import os
 import pdfplumber
+import reimport streamlit as st
+import pandas as pd
+from docxtpl import DocxTemplate
+from datetime import datetime
+import os
+import pdfplumber
 import re
+import openpyxl
+from openpyxl.utils import coordinate_to_tuple
+from openpyxl.styles import Alignment
+import io
+import zipfile
+
+# --- CONFIGURAÇÃO DA PÁGINA ---
+st.set_page_config(page_title="Raichu Pro", layout="wide", page_icon="⚡")
+
+# ==============================================================================
+# 🌟 ARQUITETURA DE ABAS (TABS) - VISUAL PREMIUM 🌟
+# ==============================================================================
+aba_inicio, aba_gerador = st.tabs(["⚡ Início & Sobre", "🚀 Gerador de Documentos"])
+
+with aba_inicio:
+    st.markdown("""
+        <div style="margin-top: 20px; margin-bottom: 40px;">
+            <h1 style="font-size: 3em; font-weight: 800; display: flex; align-items: center; gap: 15px;">
+                ⚡ Bem-vindo ao Raichu Pro
+            </h1>
+            <h3 style="font-weight: 400; opacity: 0.8;">Geração Inteligente de Documentação de Projetos</h3>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    col_main, col_side = st.columns([2.5, 1])
+    
+    with col_main:
+        st.info("### 🎯 Objetivo do Sistema\n\nO **Raichu Pro** foi desenvolvido para eliminar o trabalho manual e repetitivo na criação de documentação acadêmica e administrativa de projetos. Através da leitura inteligente de relatórios em PDF, o sistema extrai dados de títulos, equipes, resumos e prazos, gerando instantaneamente pacotes completos em formatos **Word (.docx)** e **Excel (.xlsx)** perfeitamente formatados.")
+        
+        st.markdown("### 📊 Opções de Instrumentos Jurídicos Suportados")
+        
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            st.warning("**ACT**\n\n**Acordo de Cooperação Técnica**\n\nFoco em cooperações acadêmicas sem repasse financeiro direto ou fundações obrigatórias.")
+        with c2:
+            st.warning("**CG**\n\n**Contrato Global**\n\nGerenciamento integrado com fundações de apoio parceiras (FATEC, FUNDEP, etc.).")
+        with c3:
+            st.warning("**AP**\n\n**Acordo de Parceria**\n\nProjetos voltados à inovação, P&D e parcerias estratégicas institucionais.")
+
+    with col_side:
+        with st.container(border=True):
+            st.markdown("### ℹ️ Informações da Versão")
+            st.markdown("**Versão:** 5.1.0 (Blindagem da Seção 5.1 e Metas)")
+            st.markdown("**Desenvolvido por:** Julio Maia dos Santos - Estudante de graduação em Engenharia Elétrica 👨‍💻⚡")
+            st.markdown("**Arquitetura:** Python Nativo (Streamlit Cloud)")
+            st.divider()
+            st.caption("⚡ Sistema otimizado para alta performance e precisão em relatórios institucionais.")
+
+# ==============================================================================
+# O CÓDIGO PRINCIPAL DO RAICHU PRO COMEÇA AQUI (DENTRO DA SEGUNDA ABA)
+# ==============================================================================
+with aba_gerador:
+    # --- FUNÇÃO DE DATA ---
+    def data_extenso(dt):
+        meses = {1: "janeiro", 2: "fevereiro", 3: "março", 4: "abril", 5: "maio", 6: "junho",
+                 7: "julho", 8: "agosto", 9: "setembro", 10: "outubro", 11: "novembro", 12: "dezembro"}
+        return f"{dt.day} de {meses[dt.month]} de {dt.year}"
+
+    # --- FILTRO ATÔMICO CONTRA RUÍDOS DE PÁGINA E TEXTOS VAZIOS ---
+    def limpar_texto_bloco(txt):
+        if not txt: return ""
+        linhas = txt.split('\n')
+        linhas_limpas = []
+        for l in linhas:
+            l_strip = l.strip()
+            if re.search(r'(?i)Página \d+ de \d+', l_strip): continue
+            if re.search(r'(?i)UNIVERSIDADE FEDERAL DE SANTA MARIA', l_strip): continue
+            if re.search(r'(?i)PROJETO NA ÍNTEGRA', l_strip): continue
+            if re.search(r'(?i)PROJETO - DADOS PARA FUNDAÇÃO', l_strip): continue
+            if re.search(r'(?i)Consulte em http', l_strip): continue
+            if re.search(r'\d{2}/\d{2}/\d{4}\s+\d{2}:\d{2}', l_strip): continue
+            if re.search(r'[A-F0-9]{4}(?:\.[A-F0-9]{4}){7}', l_strip): continue
+            linhas_limpas.append(l)
+
+        txt_final = " ".join([l.strip() for l in linhas_limpas if l.strip()])
+        if txt_final.strip() in ["", "-", ".", "Não se aplica"]:
+            return ""
+        return txt_final.strip()
+
+    # --- DETECÇÃO AUTOMÁTICA DO INSTRUMENTO JURÍDICO (BLINDADA) ---
+    def identificar_instrumento_juridico(texto):
+        texto_low = (texto or "").lower()
+
+        m_instr = re.search(r'instrumento jur[íi]dico celebrado\s*:\s*([^\n]+)', texto_low)
+        if m_instr:
+            valor = m_instr.group(1).strip()
+            if any(x in valor for x in ["contrato", "cg", "prestação", "prestacao", "global"]):
+                return "Contrato Global (CG)"
+            if any(x in valor for x in ["parceria", "ap"]):
+                return "Acordo de Parceria (AP)"
+            if any(x in valor for x in ["cooperação", "cooperacao", "act", "técnica", "tecnica"]):
+                return "Acordo de Cooperação Técnica (ACT)"
+
+        score_cg = (texto_low.count("contrato global") + texto_low.count("contrato de prestação") + 
+                    texto_low.count("prestação de serviço") + texto_low.count("prestacao de servico"))
+        score_ap = (texto_low.count("acordo de parceria") + texto_low.count("termo de parceria"))
+        score_act = (texto_low.count("acordo de cooperação") + texto_low.count("cooperação técnica") + 
+                     texto_low.count("acordo de cooperacao") + texto_low.count("cooperacao tecnica"))
+
+        scores = {
+            "Contrato Global (CG)": score_cg,
+            "Acordo de Parceria (AP)": score_ap,
+            "Acordo de Cooperação Técnica (ACT)": score_act
+        }
+
+        vencedor = max(scores, key=scores.get)
+        if scores[vencedor] > 0:
+            return vencedor
+        return "Acordo de Cooperação Técnica (ACT)"
+
+    st.title("Raichu Pro ⚡ (Integração Financeira)")
+
+    st.markdown(
+        """
+        <style>
+        div[data-testid="stRadio"] > label { font-size: 20px !important; font-weight: bold !important; }
+        div[role="radiogroup"] p { font-size: 18px !important; }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
+    st.markdown("### 1️⃣ Passo 1: Upload dos Arquivos")
+    st.info("💡 **Dica:** Você pode arrastar os dois relatórios juntos (O *Projeto na Íntegra* e o *Dados para Fundação*) para a caixa abaixo.")
+    col_upload1, col_upload2 = st.columns(2)
+    with col_upload1:
+        arquivos_pdf = st.file_uploader("1. Insira o(s) Relatório(s) do Projeto (.PDF)", type=["pdf"], accept_multiple_files=True)
+    with col_upload2:
+        arquivo_financeiro = st.file_uploader("2. Insira os Dados Financeiros (.XLSX) (Opcional)", type=["xlsx"])
+
+    fundacoes_dados = {
+        "FATEC": {"fundacao": "FATEC - Fundação de Apoio à Tecnologia e Ciência", "sigla_fundacao": "FATEC"},
+        "FUNDEP": {"fundacao": "FUNDEP - Fundação de Desenvolvimento da Pesquisa", "sigla_fundacao": "FUNDEP"},
+        "FAURGS": {"fundacao": "FAURGS - Fundação de Apoio à Universidade Federal do Rio Grande do Sul", "sigla_fundacao": "FAURGS"},
+        "FDMS": {"fundacao": "FDMS - Fundação Delfim Mendes Silveira", "sigla_fundacao": "FDMS"}
+    }
+
+    dados_extraidos = {
+        "titulo": "", "numero": "", "empresa": "", "data_inicio_proj": "", "data_termino_proj": "",
+        "resumo": "", "objetivos": "", "justificativa_proj": "", "resultados": "", "importancia_projeto": "",
+        "plano_gestao": "", "objetivo_estrategico": "", "inovacao_bool": "", "inovacao_potencial": "",
+        "instrumento_juridico_pdf": "", "diretor_nome": "", "diretor_siape": "", 
+        "chefe_nome": "", "chefe_siape": "", "justificativa_fund": "", "metas": "",
+        "coord_adm_nome": "", "coord_adm_siape": "",
+        "classificacoes_raw": [], "equipe_raw": [], "unidades_raw": [], "regioes_raw": [], "metas_fatiadas": [],
+        "fundacao_sugerida": "FATEC", "tipo_processo_sugerido": "Acordo de Cooperação Técnica (ACT)"
+    }
+
+    texto_limpo = ""
+
+    if arquivos_pdf:
+        try:
+            texto_completo = ""
+            for arq_pdf in arquivos_pdf:
+                with pdfplumber.open(arq_pdf) as pdf:
+                    for page in pdf.pages:
+                        extraido = page.extract_text()
+                        if extraido: texto_completo += extraido + "\n"
+
+            texto_limpo = re.sub(r'---\s*PAGE\s*\d+\s*---', '\n', texto_completo, flags=re.IGNORECASE)
+            texto_limpo = re.sub(r'\d{2}/\d{2}/\d{4}\s\d{2}:\d{2}', '', texto_limpo)
+            texto_limpo = re.sub(r'[A-F0-9]{4}(?:\.[A-F0-9]{4}){7}', '', texto_limpo, flags=re.IGNORECASE)
+            texto_limpo = re.sub(r'Consulte em http[^\n]+', '', texto_limpo, flags=re.IGNORECASE)
+            texto_limpo = re.sub(r'Registrado em:\s*\d{2}/\d{2}/\d{4}', '', texto_limpo, flags=re.IGNORECASE)
+            texto_limpo = re.sub(r'UNIVERSIDADE FEDERAL DE SANTA MARIA - UFSM', '', texto_limpo, flags=re.IGNORECASE)
+            texto_limpo = re.sub(r'PROJETO NA ÍNTEGRA', '', texto_limpo, flags=re.IGNORECASE)
+            texto_limpo = re.sub(r'PROJETO - DADOS PARA FUNDAÇÃO', '', texto_limpo, flags=re.IGNORECASE)
+
+            lixos_para_apagar = [
+                r'(?i)PARTICIPANTE\s+V[ÍI]NCULO\s+CURSO/LOTA[ÇC][ÃA]O\s+FUN[ÇC][ÃA]O\s*\$\$\$',
+                r'(?i)PARTICIPANTE\s+V[ÍI]NCULO\s+CURSO/LOTA[ÇC][ÃA]O\s+FUN[ÇC][ÃA]O',
+                r'(?i)CH\s+DENTRO\s+CH\s+FORA\s+IN[ÍI]CIO\s+T[ÉE]RMINO\s+OBSERVA[ÇC][ÃA]O',
+                r'(?i)UNIDADE\s+FUN[ÇC][ÃA]O\s+VALOR\s+IN[ÍI]CIO\s+T[ÉE]RMINO',
+                r'(?i)TIPO\s+DE\s+CLASSIFICA[ÇC][ÃA]O\s+CLASSIFICA[ÇC][ÃA]O'
+            ]
+            for lixo in lixos_para_apagar:
+                texto_limpo = re.sub(lixo, ' ', texto_limpo)
+
+            for sigla in ["FATEC", "FUNDEP", "FAURGS", "FDMS"]:
+                if re.search(r'\b' + sigla + r'\b', texto_limpo, re.IGNORECASE):
+                    dados_extraidos["fundacao_sugerida"] = sigla
+                    break
+
+            dados_extraidos["tipo_processo_sugerido"] = identificar_instrumento_juridico(texto_limpo)
+
+            def extrair(regex, group=1):
+                m = re.search(regex, texto_limpo, re.IGNORECASE)
+                return m.group(group).strip() if m else ""
+
+            dados_extraidos["titulo"] = extrair(r'Título:\s*(.*?)\n')
+            dados_extraidos["numero"] = extrair(r'Número:\s*(\d+)')
+            dados_extraidos["data_inicio_proj"] = extrair(r'Início:\s*(\d{2}/\d{2}/\d{4})')
+            dados_extraidos["data_termino_proj"] = extrair(r'Término:\s*(\d{2}/\d{2}/\d{4})')
+            dados_extraidos["classificacao"] = extrair(r'Classificação:\s*(.*?)\n')
+            dados_extraidos["empresa"] = extrair(r'(?:Financiador[a]?|Empresa|Cooperante|Financiador|Instituição):\s*(.*?)\n')
+            dados_extraidos["instrumento_juridico_pdf"] = extrair(r'Instrumento jurídico celebrado:\s*([^\n]+)')
+
+            m_coord = re.search(r'Responsável pelo projeto:\s*(.*?)\s*\(\s*(\d+)\s*\)', texto_limpo, re.IGNORECASE)
+            if not m_coord: m_coord = re.search(r'Responsável pelo projeto:\s*\nNome:\s*(.*?)\s*\(\s*(\d+)\s*\)', texto_limpo, re.IGNORECASE)
+            if m_coord: dados_extraidos["coord_geral_pdf"] = {"nome": m_coord.group(1).strip(), "siape": m_coord.group(2).strip()}
+
+            m_fisc = re.search(r'Fiscal:\s*(\d+)\s*-\s*(.*?)\s*\(', texto_limpo, re.IGNORECASE)
+            if m_fisc: dados_extraidos["fiscal_pdf"] = {"siape": m_fisc.group(1).strip(), "nome": m_fisc.group(2).strip()}
+
+            m_dir = re.search(r'Diretor\(a\) Unidade/Centro:\s*(.*?)\s*\(\s*(\d+)\s*\)', texto_limpo, re.IGNORECASE)
+            if m_dir:
+                dados_extraidos["diretor_nome"] = m_dir.group(1).strip()
+                dados_extraidos["diretor_siape"] = m_dir.group(2).strip()
+
+            m_chefe = re.search(r'Chefe:\s*(.*?)\s*\(\s*(\d+)\s*\)', texto_limpo, re.IGNORECASE)
+            if m_chefe:
+                dados_extraidos["chefe_nome"] = m_chefe.group(1).strip()
+                dados_extraidos["chefe_siape"] = m_chefe.group(2).strip()
+                
+            m_adm = re.search(r'Coordenador\(es\) administrativo\(s\):\s*(.*?)\s*\(\s*(\d+)\s*\)', texto_limpo, re.IGNORECASE)
+            if m_adm:
+                dados_extraidos["coord_adm_nome"] = m_adm.group(1).strip()
+                dados_extraidos["coord_adm_siape"] = m_adm.group(2).strip()
+
+            def extrair_bloco(inicio_regex, fins_regex):
+                m_inicio = re.search(inicio_regex, texto_limpo, re.IGNORECASE)
+                if not m_inicio: return ""
+                idx = m_inicio.end()
+                end_idx = len(texto_limpo)
+                for f in fins_regex:
+                    mf = re.search(f, texto_limpo[idx:], re.IGNORECASE)
+                    if mf:
+                        pos = idx + mf.start()
+                        if pos < end_idx: end_idx = pos
+                return texto_limpo[idx:end_idx].strip()
+
+            dados_extraidos["resumo"] = limpar_texto_bloco(extrair_bloco(r'Resumo:', [r'Objetivos:']))
+            dados_extraidos["objetivos"] = limpar_texto_bloco(extrair_bloco(r'Objetivos:', [r'Justificativa:']))
+            dados_extraidos["justificativa_proj"] = limpar_texto_bloco(extrair_bloco(r'Justificativa:', [r'Resultados esperados:']))
+            dados_extraidos["resultados"] = limpar_texto_bloco(extrair_bloco(r'Resultados esperados:', [r'PARTICIPANTES', r'PLANO DE GESTÃO', r'UNIDADES VINCULADAS']))
+            
+            imp = extrair_bloco(r'Importância do projeto:', [r'Justificativa para a escolha da fundação:', r'METAS[^\n]*\n', r'\| PLANO DE'])
+            if imp: dados_extraidos["importancia_projeto"] = limpar_texto_bloco(imp)
+
+            just_fund = extrair_bloco(r'Justificativa para a escolha da fundação:', [r'METAS[^\n]*\n', r'\| PLANO DE', r'NÚMERO', r'(?i)PARTICIP'])
+            if just_fund: dados_extraidos["justificativa_fund"] = limpar_texto_bloco(just_fund)
+
+            metas_txt = extrair_bloco(r'METAS[^\n]*\n', [r'\| PLANO DE', r'NÚMERO', r'(?i)PARTICIP', r'UNIDADES VINCULADAS'])
+            if metas_txt: 
+                dados_extraidos["metas"] = limpar_texto_bloco(metas_txt)
+                
+                # FATIADOR DE METAS PARA EXCEL - VERSÃO COM LAYOUT HIERÁRQUICO
+                parsed_metas = []
+                current_meta = ""
+                lines = metas_txt.split('\n')
+                for i, line in enumerate(lines):
+                    line = line.strip()
+                    if not line: continue
+                    
+                    m_meta = re.match(r'^(M\d+)\s*[-]*\s*(.*)', line, re.IGNORECASE)
+                    if m_meta and not line.upper().startswith("F"):
+                        current_meta = m_meta.group(0).strip()
+                        current_meta = re.sub(r'\s*\d{2}/\d{2}/\d{4}.*$', '', current_meta).strip() # Limpa sujeira de datas e % do OCR
+                        if not re.match(r'^M\d+\s*-', current_meta, re.IGNORECASE):
+                            current_meta = re.sub(r'^(M\d+)\s+', r'\1 - ', current_meta, flags=re.IGNORECASE)
+                        continue
+                        
+                    m_fase = re.match(r'^(F\d+)\s*[-]*\s*(.*)', line, re.IGNORECASE)
+                    if m_fase:
+                        fase_num = m_fase.group(1).upper()
+                        fase_desc = m_fase.group(2).strip()
+                        fase_desc = re.sub(r'\s*\d{2}/\d{2}/\d{4}.*$', '', fase_desc).strip() # Limpa sujeira de datas e % do OCR
+                        
+                        inicio, termino = "", ""
+                        m_date = re.search(r'(\d{2}/\d{2}/\d{4})\s*a\s*(\d{2}/\d{2}/\d{4})', line)
+                        if m_date:
+                            inicio = m_date.group(1)
+                            termino = m_date.group(2)
+                        else:
+                            for j in range(i+1, min(i+15, len(lines))):
+                                m_date = re.search(r'(\d{2}/\d{2}/\d{4})\s*a\s*(\d{2}/\d{2}/\d{4})', lines[j])
+                                if m_date:
+                                    inicio = m_date.group(1)
+                                    termino = m_date.group(2)
+                                    break
+                                    
+                        parsed_metas.append({
+                            "Meta": current_meta, 
+                            "Fase": fase_num, 
+                            "Descricao": fase_desc, 
+                            "Inicio": inicio, 
+                            "Termino": termino
+                        })
+                        current_meta = "" # Limpa a Meta para a próxima fase vir em branco
+                dados_extraidos["metas_fatiadas"] = parsed_metas
+
+            cabecalho_combinado = r'PLANO DE GESTÃO\s*(?:-?\s*)?OBJETIVO ESTRATÉGICO'
+            gestao_combined_raw = extrair_bloco(cabecalho_combinado, [r'\n\s*INOVAÇÃO', r'PROJETO POSSUI POTENCIAL', r'PROJETO POSSUI'])
+
+            match_separa = re.match(r'(?i)^\s*(PDI\s*\d{4}-\d{4}\s*-\s*\w+)\s+(.*)', gestao_combined_raw)
+            if match_separa:
+                dados_extraidos["plano_gestao"] = limpar_texto_bloco(match_separa.group(1))
+                dados_extraidos["objetivo_estrategico"] = limpar_texto_bloco(match_separa.group(2))
+            else:
+                if " - " in gestao_combined_raw:
+                    partes_gen = gestao_combined_raw.split(" - ", 1)
+                    dados_extraidos["plano_gestao"] = limpar_texto_bloco(partes_gen[0])
+                    dados_extraidos["objetivo_estrategico"] = limpar_texto_bloco(partes_gen[1])
+                else:
+                    dados_extraidos["plano_gestao"] = limpar_texto_bloco(gestao_combined_raw)
+                    dados_extraidos["objetivo_estrategico"] = ""
+
+            inov_bool = extrair_bloco(r'PROJETO POSSUI POTENCIAL DE INOVAÇÃO[^\n]*', [r'POTENCIAL DE INOVAÇÃO DO PROJETO'])
+            if "Sim" in inov_bool: dados_extraidos["inovacao_bool"] = "Sim"
+            elif "Não" in inov_bool or "Nao" in inov_bool: dados_extraidos["inovacao_bool"] = "Não"
+
+            pot = extrair_bloco(r'POTENCIAL DE INOVAÇÃO DO PROJETO', [r'REGIÕES DE ATUAÇÃO', r'UNIDADES VINCULADAS', r'5 - UNIDADES'])
+            dados_extraidos["inovacao_potencial"] = limpar_texto_bloco(pot)
+
+            classif_blk = extrair_bloco(r'CLASSIFICAÇÕES', [r'PLANO DE GESTÃO'])
+            for line in classif_blk.split('\n'):
+                line = line.strip()
+                if not line or "TIPO DE CLASSIFICAÇÃO" in line.upper() or line.upper() == "CLASSIFICAÇÃO" or "CLASSIFICAÇÕES" in line.upper(): continue
+
+                m = re.search(r'\s+(\d{1,5}\.\d.*|\d{1,5}\s+-.*)', line)
+                if m:
+                    tipo = line[:m.start()].strip()
+                    valor = line[m.start():].strip()
+                    dados_extraidos["classificacoes_raw"].append({"Tipo de Classificação": tipo, "Classificação": valor})
+                else:
+                    if len(line) > 5:
+                        dados_extraidos["classificacoes_raw"].append({"Tipo de Classificação": line, "Classificação": ""})
+
+            # =========================================================
+            # 🔥 NOVO SCANNER BLINDADO DE EQUIPE COM CHEFIAS
+            # =========================================================
+            bloco_equipe = extrair_bloco(r'Resultados esperados:', [r'UNIDADES VINCULADAS\s*\n', r'CLASSIFICAÇÕES'])
+            if not bloco_equipe:
+                bloco_equipe = texto_limpo
+
+            all_people = list(re.finditer(r'(\d{5,15})\s*[- ]\s*([A-ZÀ-Ÿ\s\'\n\|]+?)(?=(?:\n|\s*\|)*(?:\d{5,15}|CH DENTRO|CH FORA|V[IÍ]NCULO|Docente|Técnico|Estudante|Participante|$))', bloco_equipe))
+            
+            for i, m in enumerate(all_people):
+                siape = m.group(1).strip()
+                nome = m.group(2).replace('\n', ' ').replace('|', '').strip()
+                nome = re.sub(r'\s+', ' ', nome)
+                
+                start_pos = m.end()
+                end_pos = all_people[i+1].start() if i+1 < len(all_people) else len(bloco_equipe)
+                chunk = bloco_equipe[start_pos:end_pos]
+                
+                m_vinc = re.search(r'(Docente|Técnico[- ]Administrativo|Estudante de Pós-graduação|Estudante de Graduação|Estudante|Pesquisador|Participante Externo|Visitante|Servidor|Outro)', chunk, re.IGNORECASE)
+                
+                # Participante tem vínculo ou carga horária no seu bloco
+                if m_vinc or "CH DENTRO" in chunk or "CH FORA" in chunk:
+                    vinculo = m_vinc.group(1).title().replace('- ', '-') if m_vinc else "Outro"
+                    if "Técnico" in vinculo and "Administrativo" in vinculo: vinculo = "Técnico-Administrativo em Educação"
+                    
+                    lotacao = ""
+                    if m_vinc:
+                        text_after_vinc = chunk[m_vinc.end():].strip()
+                        text_after_vinc = re.sub(r'\s*\|\s*', ' ', text_after_vinc)
+                        m_lot = re.search(r'^(.*?)(?=\s+(Participante|Coordenador|Fiscal|Não informado|Sim|Não|Nao|\d{5,15}))', text_after_vinc, re.IGNORECASE | re.DOTALL)
+                        lotacao = m_lot.group(1).strip() if m_lot else ""
+                        lotacao = re.sub(r'^(em Educação|de Graduação|de Pós-graduação|de Ensino Médio|de graduação)\s*', '', lotacao, flags=re.IGNORECASE).strip()
+                        lotacao = lotacao.replace("CURSO/LOTAÇÃO\n", "").strip()
+                        
+                    m_info = re.search(r'(Coordenador Administrativo|Coordenador|Estagiário|Colaborador|Fiscal|Participante|Membro|Pesquisador|Responsável Técnico|Responsável|Técnico|Bolsista)\s+(Sim|Não|Nao)[\s\S]*?(\d+)\s+(\d+)\s+(\d{2}/\d{2}/\d{4})\s+(\d{2}/\d{2}/\d{4})', chunk, re.IGNORECASE)
+                    funcao, bolsa, ch_d, ch_f, data_ini, data_fim = "Participante", "Não", "0", "0", "", ""
+                    if m_info:
+                        funcao = m_info.group(1).title()
+                        bolsa = m_info.group(2).title()
+                        ch_d = m_info.group(3)
+                        ch_f = m_info.group(4)
+                        data_ini = m_info.group(5)
+                        data_fim = m_info.group(6)
+                    else:
+                        m_ch = re.search(r'CH DENTRO\s*(?:\|\s*)?(\d+)', chunk, re.IGNORECASE)
+                        if m_ch: ch_d = m_ch.group(1)
+                        
+                        m_chf = re.search(r'CH FORA\s*(?:\|\s*)?(\d+)', chunk, re.IGNORECASE)
+                        if m_chf: ch_f = m_chf.group(1)
+                        
+                        m_ini = re.search(r'(\d{2}/\d{2}/\d{4})\s*(?:\|\s*)?(\d{2}/\d{2}/\d{4})', chunk)
+                        if m_ini:
+                            data_ini = m_ini.group(1)
+                            data_fim = m_ini.group(2)
+                            
+                        m_func = re.search(r'(Coordenador Administrativo|Coordenador|Estagiário|Colaborador|Fiscal|Participante|Membro|Pesquisador|Responsável Técnico|Responsável|Técnico|Bolsista)', chunk, re.IGNORECASE)
+                        if m_func: funcao = m_func.group(1).title()
+                        
+                    dados_extraidos["equipe_raw"].append({
+                        "Nome": nome, "SIAPE": siape, "Vínculo": vinculo, "Lotação": lotacao,
+                        "Função": funcao, "Bolsa": bolsa, "CH_D": ch_d, "CH_F": ch_f, "Início": data_ini, "Término": data_fim,
+                        "Chefia Imediata": "", "SIAPE Chefia": ""
+                    })
+                else:
+                    # Se não tem vínculo, é uma Chefia que pertence ao participante de cima
+                    if dados_extraidos["equipe_raw"]:
+                        dados_extraidos["equipe_raw"][-1]["Chefia Imediata"] = nome.replace('PARTICIPANTE', '').strip()
+                        dados_extraidos["equipe_raw"][-1]["SIAPE Chefia"] = siape
+            
+            # Repassa inserindo chefias gerais nos Docentes/TAEs que ficaram sem chefe explícito
+            for p in dados_extraidos["equipe_raw"]:
+                if not p.get("Chefia Imediata") and "Estudante" not in p.get("Vínculo", ""):
+                    p["Chefia Imediata"] = dados_extraidos.get("chefe_nome", "")
+                    p["SIAPE Chefia"] = dados_extraidos.get("chefe_siape", "")
+
+            unidades_blk = extrair_bloco(r'UNIDADES VINCULADAS\s*\n', [r'CLASSIFICAÇÕES', r'REGIÕES DE ATUAÇÃO', r'PARTICIPANTES'])
+            for line in unidades_blk.split('\n'):
+                if "UNIDADE" in line or not line.strip(): continue
+                m_u = re.search(r'(.+?)\s+(Responsável|Colaborador|Fiscal|Coordenador|Membro|Financiador|Participante)\s+(?:([0-9.,\-]+)\s+)?(\d{2}/\d{2}/\d{4})\s+(\d{2}/\d{2}/\d{4})', line, re.IGNORECASE)
+                if m_u:
+                    valor_u = m_u.group(3).strip() if m_u.group(3) else ""
+                    if valor_u == "-": valor_u = ""
+                    dados_extraidos["unidades_raw"].append({
+                        "Unidade": m_u.group(1).strip(), "Função": m_u.group(2).strip(),
+                        "Valor": valor_u, "Início": m_u.group(4).strip(), "Término": m_u.group(5).strip()
+                    })
+
+            regioes_blk = extrair_bloco(r'REGIÕES DE ATUAÇÃO\s*\n', [r'DECLARAÇÃO', r'APROVAÇÕES', r'UNIDADES VINCULADAS'])
+            for line in regioes_blk.split('\n'):
+                line_str = line.strip()
+                if "CIDADE" in line_str or not line_str: continue
+                tokens = line_str.split()
+                if len(tokens) >= 5:
+                    if re.match(r'\d{2}/\d{2}/\d{4}', tokens[-1]) and re.match(r'\d{2}/\d{2}/\d{4}', tokens[-2]):
+                        fim = tokens[-1]
+                        ini = tokens[-2]
+                        pais = tokens[-3]
+                        rem = tokens[:-3]
+                        rem_str = " ".join(rem)
+                        state_match = re.search(r'(Rio Grande do Sul|Santa Catarina|Paraná|Parana|São Paulo|Sao Paulo|RS|SC|PR|SP)$', rem_str, re.IGNORECASE)
+                        if state_match:
+                            uf = state_match.group(1).strip()
+                            cidade = rem_str[:state_match.start()].strip()
+                        else:
+                            uf = rem[-1]
+                            cidade = " ".join(rem[:-1])
+                        dados_extraidos["regioes_raw"].append({
+                            "Cidade": cidade, "UF": uf, "País": pais, "Início": ini, "Término": fim
+                        })
+
+        except Exception as e:
+            st.error(f"❌ Erro no processamento do(s) PDF(s): {str(e)}")
+
+    if arquivos_pdf:
+        st.markdown("---")
+
+        st.markdown("### 2️⃣ Passo 2: Validação da Fundação")
+
+        tipo_sugerido = dados_extraidos.get("tipo_processo_sugerido", "Acordo de Cooperação Técnica (ACT)")
+        opcoes_processo = ["Acordo de Parceria (AP)", "Contrato Global (CG)", "Acordo de Cooperação Técnica (ACT)"]
+        try:
+            indice_padrao = opcoes_processo.index(tipo_sugerido)
+        except ValueError:
+            indice_padrao = 2
+
+        st.info(f"📌 Instrumento jurídico identificado automaticamente no relatório: **{tipo_sugerido}**.")
+
+        tipo_processo = st.radio(
+            "Selecione o Tipo de Processo (ou confirme a sugestão):",
+            opcoes_processo,
+            index=indice_padrao,
+            horizontal=True,
+            key="tipo_processo_radio"
+        )
+
+        if tipo_processo == "Acordo de Cooperação Técnica (ACT)":
+            st.info("💡 Processos do tipo **ACT** não necessitam de Fundação de Apoio.")
+            status_fund, fund_sigla, ctx_fundacao = "Não possui", "ACT", {}
+        else:
+            fund_sugerida = dados_extraidos.get("fundacao_sugerida", "FATEC")
+
+            st.info(f"🤖 O robô identificou que este projeto parece estar vinculado à fundação: **{fund_sugerida}**.")
+            fundacao_correta = st.radio("A fundação identificada acima está correta?", ["Sim", "Não"], index=0, horizontal=True)
+
+            ctx_fundacao = {}
+            if fundacao_correta == "Sim":
+                fund_sigla = fund_sugerida
+                status_fund = "Já definida"
+                ctx_fundacao = fundacoes_dados[fund_sigla]
+            else:
+                fund_sigla = st.selectbox("Por favor, selecione a fundação correta abaixo:", list(fundacoes_dados.keys()))
+                status_fund = "Já definida"
+                ctx_fundacao = fundacoes_dados[fund_sigla]
+
+        st.markdown("---")
+        st.markdown("### 3️⃣ Passo 3: Conferência e Edição de Dados")
+
+        with st.expander("📝 Detalhes do Projeto e Textos Longos", expanded=True):
+            st.warning("⚠️ **ATENÇÃO:** O robô preencheu os dados automaticamente. Confira e edite abaixo.")
+            c1, c2 = st.columns(2)
+            with c1:
+                tit_proj = st.text_input("Nome do Projeto (Título)", value=dados_extraidos.get("titulo", ""))
+                n_proj = st.text_input("Número do Registro GAP", value=dados_extraidos.get("numero", ""))
+                resumo = st.text_area("Resumo do Projeto", value=dados_extraidos.get("resumo", ""), height=120)
+                objetivos = st.text_area("Objetivos do Projeto", value=dados_extraidos.get("objetivos", ""), height=120)
+                justificativa = st.text_area("Justificativa do Projeto", value=dados_extraidos.get("justificativa_proj", ""), height=120)
+                importancia = st.text_area("Importância do Projeto", value=dados_extraidos.get("importancia_projeto", ""), height=80)
+                justificativa_fund = st.text_area("Justificativa para escolha da Fundação", value=dados_extraidos.get("justificativa_fund", ""), height=80)
+            with c2:
+                diretor_unidade = st.text_input("Diretor da Unidade", value=dados_extraidos.get("diretor_nome", ""))
+                siape_diretor = st.text_input("SIAPE do Diretor", value=dados_extraidos.get("diretor_siape", ""))
+                st.text_input("Classificação", value=dados_extraidos.get("classificacao", ""), disabled=True)
+                data_termino_edit = st.text_input("Data de Término", value=dados_extraidos.get("data_termino_proj", ""))
+                instrumento_juridico_edit = st.text_input("Instrumento Jurídico (Excel)", value=dados_extraidos.get("instrumento_juridico_pdf", ""))
+                resultados = st.text_area("Resultados Esperados", value=dados_extraidos.get("resultados", ""), height=120)
+                metas = st.text_area("Metas do Projeto", value=dados_extraidos.get("metas", ""), height=120)
+
+        st.markdown("---")
+        st.subheader("👨‍🏫 Coordenador e Fiscal do Projeto")
+        col_c1, col_c2, col_f1, col_f2 = st.columns(4)
+        c_g_n = col_c1.text_input("Coordenador", value=dados_extraidos.get("coord_geral_pdf", {}).get("nome", "") if dados_extraidos.get("coord_geral_pdf") else "")
+        c_g_s = col_c2.text_input("SIAPE Coord.", value=dados_extraidos.get("coord_geral_pdf", {}).get("siape", "") if dados_extraidos.get("coord_geral_pdf") else "")
+        f_nome = col_f1.text_input("Fiscal", value=dados_extraidos.get("fiscal_pdf", {}).get("nome", "") if dados_extraidos.get("fiscal_pdf") else "")
+        f_siape = col_f2.text_input("SIAPE Fiscal", value=dados_extraidos.get("fiscal_pdf", {}).get("siape", "") if dados_extraidos.get("fiscal_pdf") else "")
+
+        st.markdown("---")
+        col_adm1, col_adm2 = st.columns(2)
+        nome_coord_adm = col_adm1.text_input("Coordenador Administrativo", value=dados_extraidos.get("coord_adm_nome", ""))
+        siape_coord_adm = col_adm2.text_input("SIAPE Coord. Adm.", value=dados_extraidos.get("coord_adm_siape", ""))
+
+        st.markdown("---")
+        st.subheader("🏢 Empresas / Parceiras")
+        st.info("Digite manualmente na caixinha abaixo o nome da empresa. Ex: a FAURGS, o Banco do Brasil")
+        num_empresas = st.number_input("Quantas empresas/instituições participam deste projeto?", min_value=1, max_value=10, value=1)
+
+        nomes_empresas_validas = []
+        for i in range(num_empresas):
+            key_emp = f"nome_empresa_simples_{i}"
+            if key_emp not in st.session_state:
+                st.session_state[key_emp] = dados_extraidos.get("empresa", "") if i == 0 else ""
+            nome_emp = st.text_input(f"Nome da Empresa {i+1}", key=key_emp)
+            if nome_emp and nome_emp.strip() != "":
+                nomes_empresas_validas.append(nome_emp.strip())
+
+        st.markdown("---")
+        st.write("### 📊 Tabelas Estruturadas Consolidadas")
+
+        t1 = st.tabs(["👥 Equipe"])[0]
+
+        with t1:
+            st.warning("⚠️ **AVISO:** Preencha as colunas 'Chefia Imediata' e 'SIAPE Chefia' para as declarações de Carga Horária.")
+
+            equipe_final = dados_extraidos["equipe_raw"].copy()
+            if f_nome and not any(e["SIAPE"] == f_siape for e in equipe_final):
+                equipe_final.append({"Nome": f_nome, "SIAPE": f_siape, "Vínculo": "Docente", "Lotação": "DEPARTAMENTO", "Função": "Fiscal", "CH_D": "0", "CH_F": "0", "Bolsa": "Não", "Início": "", "Término": "", "Chefia Imediata": dados_extraidos.get("chefe_nome", ""), "SIAPE Chefia": dados_extraidos.get("chefe_siape", "")})
+
+            df_equipe = pd.DataFrame(equipe_final).fillna("")
+            df_equipe_edit = st.data_editor(df_equipe, num_rows="dynamic", key="ed_equipe", use_container_width=True)
+            equipe_final = df_equipe_edit.fillna("").to_dict(orient="records")
+
+        st.markdown("---")
+        st.markdown("### 4️⃣ Passo 4: Geração de Documentos")
+        st.write("Ao clicar no botão abaixo, o sistema irá preencher todos os documentos na nuvem e preparar um arquivo .ZIP.")
+
+        if st.button("🚀 Processar Documentos"):
+            with st.spinner("⏳ Processando e gerando os documentos... Por favor, aguarde!"):
+                logs = []
+                estudantes_ignorados_log = []
+
+                if len(nomes_empresas_validas) == 0:
+                    texto_empresas = ""
+                elif len(nomes_empresas_validas) == 1:
+                    texto_empresas = f" e {nomes_empresas_validas[0]}"
+                elif len(nomes_empresas_validas) == 2:
+                    texto_empresas = f", {nomes_empresas_validas[0]} e {nomes_empresas_validas[1]}"
+                else:
+                    texto_empresas = ", " + ", ".join(nomes_empresas_validas[:-1]) + f" e {nomes_empresas_validas[-1]}"
+
+                base_instr = "Acordo de Cooperação Técnica"
+                if tipo_processo == "Acordo de Parceria (AP)": base_instr = "Acordo de Parceria"
+                elif tipo_processo == "Contrato Global (CG)": base_instr = "Contrato"
+
+                sufixo_classificacao = dados_extraidos.get("classificacao", "").strip()
+                for c in dados_extraidos["classificacoes_raw"]:
+                    if "caracterização das ações de extensão" in str(c.get("Tipo de Classificação", "")).lower():
+                        val = str(c.get("Classificação", ""))
+                        m_suf = re.search(r'[\d\.]+\s*-\s*(.*)', val)
+                        sufixo_classificacao = m_suf.group(1).strip() if m_suf else val.strip()
+                        break
+                
+                texto_instrumento_completo = f"{base_instr} com {sufixo_classificacao}" if sufixo_classificacao else base_instr
+
+                if tipo_processo == "Contrato Global (CG)": pasta_alvo = f"Modelos/AG/{fund_sigla}" if status_fund == "Já definida" else "Modelos/AG/SEM"
+                elif tipo_processo == "Acordo de Parceria (AP)": pasta_alvo = f"Modelos/AP/{fund_sigla}" if status_fund == "Já definida" else "Modelos/AP/SEM"
+                else: pasta_alvo = "Modelos/ACT"
+
+                ctx_global = {
+                    "data_atual": data_extenso(datetime.now()), "dataatual": data_extenso(datetime.now()),
+                    "nome_projeto": tit_proj, "nomeprojeto": tit_proj,
+                    "titulo_projeto": tit_proj, "tituloprojeto": tit_proj,
+                    "n_projeto": n_proj, "nprojeto": n_proj,
+                    "classificacao": dados_extraidos["classificacao"],
+                    "instrumento_completo": instrumento_juridico_edit,
+                    "texto_empresas": texto_empresas,
+                    "nome_coord": c_g_n, "nomecoord": c_g_n,
+                    "siape_coord": c_g_s, "siapecoord": c_g_s,
+                    "nome_fiscal": f_nome, "nomefiscal": f_nome,
+                    "fiscal": f_nome,
+                    "siape_fiscal": f_siape, "siapefiscal": f_siape,
+                    "nome_coord_adm": nome_coord_adm, "nomecoordadm": nome_coord_adm,
+                    "siape_adm": siape_coord_adm, "siapeadm": siape_coord_adm,
+                    "membros": equipe_final, "objetivos": objetivos, "metas": metas,
+                    "justificativa": justificativa, "resultados": resultados,
+                    "importancia_projeto": importancia, "importanciaprojeto": importancia,
+                    "justificativa_fundacao": justificativa_fund, "justificativa_fund": justificativa_fund, "justificativafund": justificativa_fund,
+                    "diretor_unidade": diretor_unidade, "diretorunidade": diretor_unidade,
+                    "siape_diretor": siape_diretor, "siapediretor": siape_diretor
+                }
+                ctx_global.update(ctx_fundacao)
+
+                if not os.path.exists(pasta_alvo):
+                    st.error(f"❌ A pasta de modelos não foi encontrada: {pasta_alvo}")
+                else:
+                    nome_pasta_principal = f"Documentos_Gerados_{fund_sigla}_{n_proj}"
+                    nome_pasta_principal = re.sub(r'[\\/*?:"<>|]', "", nome_pasta_principal)
+
+                    arquivos_na_pasta = [f for f in os.listdir(pasta_alvo) if not f.startswith("~$")]
+                    
+                    # LISTA DE PALAVRAS-CHAVE ATUALIZADA E BLINDADA
+                    keywords_individuais = ["ch_dentro", "ch_fora", "conflito", "participante", "membro", "declaracao", "declaração", "termo", "carga_horaria"]
+
+                    zip_buffer = io.BytesIO()
+                    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+
+                        for arquivo in arquivos_na_pasta:
+                            if arquivo.endswith(".docx"):
+                                caminho_arquivo = os.path.join(pasta_alvo, arquivo)
+                                nome_minusculo = arquivo.lower()
+                                is_individual = any(kw in nome_minusculo for kw in keywords_individuais)
+
+                                if is_individual:
+                                    for membro in equipe_final:
+                                        if not membro.get("Nome") or str(membro.get("Nome")).strip() == "": continue
+                                        
+                                        vinculo_membro = str(membro.get("Vínculo", "")).lower()
+                                        funcao_membro = str(membro.get("Função", "")).lower()
+                                        
+                                        if "estudante" in vinculo_membro or "bolsista" in funcao_membro or "estagiário" in funcao_membro or "estagiario" in funcao_membro:
+                                            if arquivo == arquivos_na_pasta[0] or len(estudantes_ignorados_log) < sum("estudante" in str(m.get("Vínculo", "")).lower() for m in equipe_final):
+                                                if membro.get("Nome") not in estudantes_ignorados_log:
+                                                    estudantes_ignorados_log.append(str(membro.get("Nome")))
+                                            continue 
+
+                                        ch_d_val = str(membro.get("CH_D", "0")).strip()
+                                        ch_f_val = str(membro.get("CH_F", "0")).strip()
+
+                                        if "ch_dentro" in nome_minusculo and ch_d_val in ["0", "0.0", "0,0", "-", ""]: continue
+                                        if "ch_fora" in nome_minusculo and ch_f_val in ["0", "0.0", "0,0", "-", ""]: continue
+
+                                        nome_limpo = re.sub(r'[^\w]', '_', str(membro.get("Nome")))[:40].strip('_')
+                                        nome_doc_sem_ext = arquivo.replace(".docx", "")
+
+                                        try:
+                                            doc_ind = DocxTemplate(caminho_arquivo)
+                                            ctx_membro = ctx_global.copy()
+                                            ctx_membro.update(membro)
+                                            ctx_membro["participante"] = membro.get("Nome", "")
+                                            ctx_membro["siape"] = membro.get("SIAPE", "")
+                                            ctx_membro["cargo"] = membro.get("Função", "")
+                                            ctx_membro["ch_dentro"] = membro.get("CH_D", "0")
+                                            ctx_membro["ch_fora"] = membro.get("CH_F", "0")
+
+                                            chefia_nome_val = str(membro.get("Chefia Imediata", ""))
+                                            ctx_membro["chefia_imediata"] = chefia_nome_val
+                                            ctx_membro["nome_chefia"] = chefia_nome_val
+                                            ctx_membro["siape_chefia"] = str(membro.get("SIAPE Chefia", ""))
+                                            ctx_membro["siape_chefia_imediata"] = str(membro.get("SIAPE Chefia", ""))
+
+                                            doc_ind.render(ctx_membro)
+                                            doc_buffer = io.BytesIO()
+                                            doc_ind.save(doc_buffer)
+                                            zip_file.writestr(f"02_Documentos_Individuais/{nome_limpo}/{nome_limpo}_{nome_doc_sem_ext}.docx", doc_buffer.getvalue())
+                                        except Exception as e:
+                                            logs.append(f"Erro em {arquivo} para {membro.get('Nome')}: {str(e)}")
+
+                                else:
+                                    try:
+                                        doc = DocxTemplate(caminho_arquivo)
+                                        doc.render(ctx_global)
+                                        doc_buffer = io.BytesIO()
+                                        doc.save(doc_buffer)
+                                        zip_file.writestr(f"01_Documentos_Gerais/{arquivo}", doc_buffer.getvalue())
+                                    except Exception as e:
+                                        logs.append(f"Erro ao processar arquivo geral {arquivo}: {str(e)}")
+
+                        if arq_excel := next((f for f in arquivos_na_pasta if f.endswith(".xlsx")), None):
+                            try:
+                                caminho_excel = os.path.join(pasta_alvo, arq_excel)
+                                wb = openpyxl.load_workbook(caminho_excel)
+                                ws = wb["Plano de Trabalho"] if "Plano de Trabalho" in wb.sheetnames else wb.worksheets[0]
+
+                                def escrever_excel(celula, valor):
+                                    if valor in ["", "-", "None", "Não se aplica", None]: 
+                                        valor_final = None
+                                    elif isinstance(valor, (int, float)):
+                                        valor_final = valor
+                                    else:
+                                        valor_final = str(valor).strip()
+                                        
+                                    try:
+                                        r_row, r_col = coordinate_to_tuple(celula)
+                                        
+                                        if isinstance(valor_final, str) and len(valor_final) > 0:
+                                            qtd_quebras = valor_final.count('\n')
+                                            linhas_estimadas = (len(valor_final) / 110.0) + qtd_quebras
+                                            if linhas_estimadas < 1: linhas_estimadas = 1
+                                            altura_calculada = (linhas_estimadas * 15) + 10
+                                            altura_atual = ws.row_dimensions[r_row].height
+                                            if altura_atual is None or altura_calculada > altura_atual:
+                                                ws.row_dimensions[r_row].height = altura_calculada
+
+                                        for merged_range in list(ws.merged_cells.ranges):
+                                            min_col, min_row, max_col, max_row = merged_range.bounds
+                                            if min_col <= r_col <= max_col and min_row <= r_row <= max_row:
+                                                ws.cell(row=min_row, column=min_col).value = valor_final
+                                                return
+                                                
+                                        ws.cell(row=r_row, column=r_col).value = valor_final
+                                    except Exception as err:
+                                        logs.append(f"Aviso na célula {celula}: {str(err)}")
+
+                                nome_fiscal_excel = f_nome if str(f_nome).strip() != "" else "(Não possui)"
+                                nome_coord_adm_excel = nome_coord_adm if str(nome_coord_adm).strip() != "" else "(Não possui)"
+
+                                # ==========================================
+                                # 🔥 MAPEAMENTO DINÂMICO DE DADOS GERAIS 🔥
+                                # ==========================================
+                                if tipo_processo == "Acordo de Cooperação Técnica (ACT)":
+                                    escrever_excel("C17", tit_proj)
+                                    escrever_excel("C19", data_termino_edit)
+                                    escrever_excel("C20", c_g_n)
+                                    escrever_excel("C21", c_g_s)
+                                    escrever_excel("C22", nome_fiscal_excel)
+                                    escrever_excel("C23", f_siape)
+                                    escrever_excel("C24", nome_coord_adm_excel)
+                                    escrever_excel("C25", siape_coord_adm)
+                                    escrever_excel("C26", n_proj)
+                                    escrever_excel("C27", dados_extraidos.get("classificacao", ""))
+                                    escrever_excel("C28", instrumento_juridico_edit)
+
+                                    escrever_excel("A32", resumo)
+                                    escrever_excel("A36", objetivos)
+                                    escrever_excel("A40", justificativa)
+                                    escrever_excel("A44", resultados)
+                                
+                                elif fund_sigla == "FDMS":
+                                    escrever_excel("C30", tit_proj)
+                                    escrever_excel("C33", data_termino_edit)
+                                    escrever_excel("C35", c_g_n)
+                                    escrever_excel("C39", nome_fiscal_excel)
+                                    escrever_excel("C41", nome_coord_adm_excel)
+                                    escrever_excel("C43", n_proj)
+                                    escrever_excel("C44", texto_instrumento_completo)
+                                    
+                                    escrever_excel("A48", objetivos)
+                                    escrever_excel("A52", justificativa)
+                                    escrever_excel("A56", resultados)
+                                
+                                else:
+                                    escrever_excel("C28", tit_proj)
+                                    escrever_excel("C31", data_termino_edit)
+                                    escrever_excel("C33", c_g_n)
+                                    escrever_excel("C37", nome_fiscal_excel)
+                                    escrever_excel("C39", nome_coord_adm_excel)
+                                    escrever_excel("C41", n_proj)
+                                    escrever_excel("C42", texto_instrumento_completo)
+                                    
+                                    escrever_excel("A46", objetivos)
+                                    escrever_excel("A50", justificativa)
+                                    escrever_excel("A54", resultados)
+
+                                # =========================================================
+                                # 🔥 INJEÇÃO DAS METAS E PROTEÇÃO DA SEÇÃO 5.1
+                                # =========================================================
+                                def encontrar_linha_ampla(planilha, texto_busca, min_row, max_row):
+                                    for r in range(min_row, max_row):
+                                        for c in range(1, 15):
+                                            val = str(planilha.cell(row=r, column=c).value).strip()
+                                            if texto_busca.lower() in val.lower():
+                                                return r
+                                    return None
+
+                                linha_inicio_metas = encontrar_linha_ampla(ws, "(descreva aqui a fase", 300, 400)
+                                linha_secao_51 = encontrar_linha_ampla(ws, "5.1 DESCRIÇÃO DAS ATIVIDADES", 320, 450) or 999
+                                
+                                if linha_inicio_metas and "metas_fatiadas" in dados_extraidos:
+                                    for i, m_fatiada in enumerate(dados_extraidos["metas_fatiadas"]):
+                                        linha_alvo = linha_inicio_metas + i
+                                        
+                                        # BLINDAGEM: Se a injeção de metas crescer demais e invadir a Seção 5.1, o robô para!
+                                        # Isso garante que a Seção 5.1 original nunca seja "esmagada" ou deletada.
+                                        if linha_alvo >= linha_secao_51 - 1:
+                                            break
+                                            
+                                        escrever_excel(f"A{linha_alvo}", m_fatiada["Meta"])
+                                        escrever_excel(f"C{linha_alvo}", m_fatiada["Fase"])
+                                        escrever_excel(f"D{linha_alvo}", m_fatiada["Descricao"])
+                                        escrever_excel(f"K{linha_alvo}", m_fatiada["Inicio"])
+                                        escrever_excel(f"L{linha_alvo}", m_fatiada["Termino"])
+
+                                # A Seção 5.1 continua existindo livremente abaixo das metas, 
+                                # 100% intocada e vazia para o professor preencher.
+
+                                # ==========================================================================
+                                # 🔥 INJEÇÃO DOS DADOS FINANCEIROS & BLINDAGEM DA PLANILHA 🔥
+                                # ==========================================================================
+                                if arquivo_financeiro:
+                                    try:
+                                        wb_fin = openpyxl.load_workbook(arquivo_financeiro, data_only=True)
+
+                                        def injetar_aba_dinamica(nome_aba, linha_inicio, cols_destino):
+                                            if nome_aba not in wb_fin.sheetnames or not linha_inicio: return
+                                            ws_fin = wb_fin[nome_aba]
+                                            linha_atual = linha_inicio
+                                            for row in ws_fin.iter_rows(min_row=2, values_only=True):
+                                                if row[0] == "Nenhum item cadastrado" or not row[0]: continue
+                                                for idx, col_excel in enumerate(cols_destino):
+                                                    if idx < len(row):
+                                                        letra_coluna = openpyxl.utils.get_column_letter(col_excel)
+                                                        coordenada = f"{letra_coluna}{linha_atual}"
+                                                        escrever_excel(coordenada, row[idx])
+                                                linha_atual += 1
+
+                                        tipo_crono = "Mensal"
+                                        total_geral_projeto = 0.0
+                                        if "Config_Raichu" in wb_fin.sheetnames:
+                                            for row in wb_fin["Config_Raichu"].iter_rows(values_only=True):
+                                                if row[0] == "Cronograma_Tipo": tipo_crono = row[1]
+                                                if row[0] == "Total_Geral": 
+                                                    try: total_geral_projeto = float(row[1])
+                                                    except: pass
+
+                                        linha_vinc_busca = encontrar_linha_ampla(ws, "TIPO DE REMUNERAÇÃO", 100, 160)
+                                        linha_vinc = linha_vinc_busca + 2 if linha_vinc_busca else (115 if fund_sigla in ["FDMS", "FATEC"] else 117)
+
+                                        linha_nao_vinc_busca = encontrar_linha_ampla(ws, "FORMA DE CONTRATAÇÃO", 130, 200)
+                                        linha_nao_vinc = linha_nao_vinc_busca + 2 if linha_nao_vinc_busca else (150 if fund_sigla in ["FDMS", "FATEC"] else 152)
+
+                                        linha_anexo_busca = encontrar_linha_ampla(ws, "ESPECIFICAÇÃO", 280, 450)
+                                        linha_anexo = linha_anexo_busca + 1 if linha_anexo_busca else (300 if fund_sigla in ["FDMS", "FATEC"] else 399)
+
+                                        cols_equipe = [1, 3, 6, 8, 9, 10, 11, 12]
+                                        cols_anexo = [3, 8, 9, 11]
+
+                                        injetar_aba_dinamica("Equipe_Vinc", linha_vinc, cols_equipe)
+                                        injetar_aba_dinamica("Equipe_Nao_Vinc", linha_nao_vinc, cols_equipe)
+                                        injetar_aba_dinamica("Anexo_1", linha_anexo, cols_anexo)
+                                        
+                                        somas_categorias = {
+                                            "DESPESAS DE CUSTEIO": 0.0, "DESPESAS DE CAPITAL": 0.0, 
+                                            "4.2 - Diárias": 0.0, "4.3 - Serviços de Terceiros Pessoa Jurídica": 0.0,
+                                            "4.4 - Serviços de Terceiros - Pessoa Física": 0.0, "4.5 - Passagens e Despesas de Locomoção": 0.0,
+                                            "4.6 - Material de Consumo": 0.0, "4.8 - Obras e Instalações": 0.0
+                                        }
+                                        mapa_abas = {
+                                            "Diarias": "4.2 - Diárias", "Servicos_PJ": "4.3 - Serviços de Terceiros Pessoa Jurídica",
+                                            "Servicos_PF": "4.4 - Serviços de Terceiros - Pessoa Física", "Passagens": "4.5 - Passagens e Despesas de Locomoção",
+                                            "Consumo": "4.6 - Material de Consumo", "Obras": "4.8 - Obras e Instalações"
+                                        }
+                                        
+                                        def safe_float(val):
+                                            try: return float(val)
+                                            except: return 0.0
+
+                                        valores_fixos = {}
+                                        for aba_fixa, nome_cat in mapa_abas.items():
+                                            if aba_fixa in wb_fin.sheetnames:
+                                                soma_aba = 0.0
+                                                for row in wb_fin[aba_fixa].iter_rows(min_row=2, values_only=True):
+                                                    if row[0] and str(row[0]) != "Nenhum item preenchido":
+                                                        try:
+                                                            val_float = float(row[1])
+                                                            valores_fixos[str(row[0]).strip()] = val_float
+                                                            soma_aba += val_float
+                                                        except: pass
+                                                somas_categorias[nome_cat] = soma_aba
+
+                                        somas_categorias["DESPESAS DE CUSTEIO"] = sum(safe_float(item[7]) for item in wb_fin["Equipe_Vinc"].iter_rows(min_row=2, values_only=True) if item[0] != "Nenhum item cadastrado") + \
+                                                                                  sum(safe_float(item[7]) for item in wb_fin["Equipe_Nao_Vinc"].iter_rows(min_row=2, values_only=True) if item[0] != "Nenhum item cadastrado") + \
+                                                                                  sum([somas_categorias[c] for c in ["4.2 - Diárias", "4.3 - Serviços de Terceiros Pessoa Jurídica", "4.4 - Serviços de Terceiros - Pessoa Física", "4.5 - Passagens e Despesas de Locomoção", "4.6 - Material de Consumo"]])
+
+                                        total_anexo1 = 0.0
+                                        if "Anexo_1" in wb_fin.sheetnames:
+                                            total_anexo1 = sum(safe_float(item[3]) for item in wb_fin["Anexo_1"].iter_rows(min_row=2, values_only=True) if item[0] != "Nenhum item cadastrado")
+                                        somas_categorias["DESPESAS DE CAPITAL"] = somas_categorias["4.8 - Obras e Instalações"] + total_anexo1
+
+                                        for cat_name, soma_val in somas_categorias.items():
+                                            if soma_val > 0:
+                                                linha_cat = encontrar_linha_ampla(ws, cat_name, 80, 350)
+                                                if linha_cat: 
+                                                    escrever_excel(f"K{linha_cat}", soma_val)
+
+                                        if valores_fixos:
+                                            for row_idx in range(180, 350):
+                                                for col_idx in range(1, 6):
+                                                    cell_txt = str(ws.cell(row=row_idx, column=col_idx).value).strip()
+                                                    if cell_txt in valores_fixos:
+                                                        escrever_excel(f"K{row_idx}", valores_fixos[cell_txt])
+                                                        break 
+                                                            
+                                        if "Fontes_3.1" in wb_fin.sheetnames:
+                                            for row in wb_fin["Fontes_3.1"].iter_rows(min_row=2, values_only=True):
+                                                fonte, check, tit_f, reg_f = row[0], row[1], row[2], row[3]
+                                                if check == "X":
+                                                    linha_f = encontrar_linha_ampla(ws, fonte[:30], 60, 100) 
+                                                    if linha_f:
+                                                        escrever_excel(f"A{linha_f}", "X")
+                                                        escrever_excel(f"K{linha_f}", total_geral_projeto)
+                                                        if "prestação de serviços abaixo" in fonte and tit_f:
+                                                            linha_txt_f = encontrar_linha_ampla(ws, "(Informe o título", linha_f, linha_f+4)
+                                                            if linha_txt_f: 
+                                                                escrever_excel(f"B{linha_txt_f}", f"Título: {tit_f} - Registro: {reg_f}")
+                                                            
+                                        if "Aplicacao_4" in wb_fin.sheetnames:
+                                            row_app = list(wb_fin["Aplicacao_4"].iter_rows(min_row=2, values_only=True))[0]
+                                            if row_app[0] == "Sim":
+                                                linha_app = encontrar_linha_ampla(ws, "Investimento em projeto de Pesquisa", 90, 130)
+                                                if linha_app:
+                                                    val_app = safe_float(row_app[3]) if len(row_app) > 3 else 0.0
+                                                    escrever_excel(f"K{linha_app}", val_app)
+                                                    linha_txt_app = encontrar_linha_ampla(ws, "(Informe o título", linha_app, linha_app+4)
+                                                    if linha_txt_app: 
+                                                        escrever_excel(f"A{linha_txt_app}", f"Título: {row_app[1]} - Registro: {row_app[2]}")
+                                                
+                                        if "Cronograma_6" in wb_fin.sheetnames:
+                                            valores_crono = [r[1] for r in wb_fin["Cronograma_6"].iter_rows(min_row=2, values_only=True)]
+                                            linha_base_crono = encontrar_linha_ampla(ws, "6 - CRONOGRAMA", 200, 450)
+                                            if linha_base_crono:
+                                                if tipo_crono == "Mensal":
+                                                    linha_ini = encontrar_linha_ampla(ws, "1.0", linha_base_crono, linha_base_crono+15)
+                                                    if not linha_ini: linha_ini = encontrar_linha_ampla(ws, "1", linha_base_crono, linha_base_crono+15)
+                                                    if not linha_ini: linha_ini = 265
+                                                    for i, val in enumerate(valores_crono):
+                                                        val_safe = safe_float(val)
+                                                        if i < 30: escrever_excel(f"C{linha_ini + i}", val_safe)
+                                                        elif i < 60: escrever_excel(f"E{linha_ini + (i - 30)}", val_safe)
+                                                        
+                                                elif tipo_crono == "Semestral":
+                                                    linha_sem_1 = encontrar_linha_ampla(ws, "1º Semestre", linha_base_crono, linha_base_crono+20)
+                                                    if linha_sem_1:
+                                                        linhas_sem = [linha_sem_1, linha_sem_1+1, linha_sem_1+4, linha_sem_1+5, linha_sem_1+8, linha_sem_1+9, linha_sem_1+12, linha_sem_1+13, linha_sem_1+16, linha_sem_1+17]
+                                                        for i, val in enumerate(valores_crono):
+                                                            if i < len(linhas_sem): escrever_excel(f"J{linhas_sem[i]}", safe_float(val))
+                                                            
+                                                elif tipo_crono == "Anual":
+                                                    linha_ano_1 = encontrar_linha_ampla(ws, "ANO 1", linha_base_crono, linha_base_crono+40)
+                                                    if linha_ano_1:
+                                                        for i, val in enumerate(valores_crono):
+                                                            if i < 5: escrever_excel(f"I{linha_ano_1 + i}", safe_float(val))
+
+                                        ws.protection.sheet = True
+                                        ws.protection.set_password("ufsm2026")
+                                        
+                                    except Exception as err:
+                                        logs.append(f"❌ Erro ao ler/injetar Dados Financeiros: {str(err)}")
+
+                                excel_buffer = io.BytesIO()
+                                wb.save(excel_buffer)
+                                zip_file.writestr(f"01_Documentos_Gerais/{arq_excel}", excel_buffer.getvalue())
+
+                            except Exception as e:
+                                logs.append(f"❌ Erro crítico no Excel Mestre: {str(e)}")
+
+                if logs:
+                    st.warning("⚠️ Foram gerados arquivos, mas ocorreram alguns avisos:")
+                    for l in logs: st.error(l)
+                else:
+                    st.success("🔥 Documentos gerados e empacotados com Sucesso Absoluto!")
+                    
+                    if estudantes_ignorados_log:
+                        st.info(f"🎓 **Filtro Automático:** O sistema bloqueou propositalmente a geração de documentos individuais (Carga Horária) para **{len(estudantes_ignorados_log)} estudante(s)/bolsista(s)**: {', '.join(estudantes_ignorados_log)}.")
+                    
+                    st.warning("📝 **LEMBRETE:** Após baixar e descompactar o ZIP, todos os documentos estarão em Word e Excel. Pode abri-los e editar normalmente.")
+
+                st.session_state['zip_data'] = zip_buffer.getvalue()
+                st.session_state['zip_name'] = f"{nome_pasta_principal}.zip"
+
+    if 'zip_data' in st.session_state:
+        st.download_button(
+            label="⬇️ CLIQUE AQUI PARA BAIXAR OS DOCUMENTOS (.ZIP)",
+            data=st.session_state['zip_data'],
+            file_name=st.session_state['zip_name'],
+            mime="application/zip",
+            type="primary"
+        )
+
+st.markdown("<br><hr>", unsafe_allow_html=True)
+st.markdown("<div style='text-align: center; color: #888888; padding: 10px; font-size: 14px;'>⚡ <b>Raichu Pro V5.1 (Blindagem da Seção 5.1 e Metas)</b> | Desenvolvido por Julio Maia 👨‍💻</div>", unsafe_allow_html=True)
 import openpyxl
 from openpyxl.utils import coordinate_to_tuple
 from openpyxl.styles import Alignment
