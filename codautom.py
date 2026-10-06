@@ -47,7 +47,7 @@ with aba_inicio:
     with col_side:
         with st.container(border=True):
             st.markdown("### ℹ️ Informações da Versão")
-            st.markdown("**Versão:** 5.3.0 (Filtro Inteligente do Fiscal)")
+            st.markdown("**Versão:** 5.6.0 (Pastas Individuais Inteligentes)")
             st.markdown("**Desenvolvido por:** Julio Maia dos Santos - Estudante de graduação em Engenharia Elétrica 👨‍💻⚡")
             st.markdown("**Arquitetura:** Python Nativo (Streamlit Cloud)")
             st.divider()
@@ -251,7 +251,6 @@ with aba_gerador:
             if metas_txt: 
                 dados_extraidos["metas"] = limpar_texto_bloco(metas_txt)
                 
-                # FATIADOR DE METAS PARA EXCEL - VERSÃO COM LAYOUT HIERÁRQUICO
                 parsed_metas = []
                 current_meta = ""
                 lines = metas_txt.split('\n')
@@ -340,7 +339,7 @@ with aba_gerador:
             if not bloco_equipe:
                 bloco_equipe = texto_limpo
 
-            all_people = list(re.finditer(r'(\d{5,15})\s*[- ]\s*([A-ZÀ-Ÿ\s\'\n\|]+?)(?=(?:\n|\s*\|)*(?:\d{5,15}|CH DENTRO|CH FORA|V[IÍ]NCULO|Docente|Técnico|Estudante|Participante|$))', bloco_equipe))
+            all_people = list(re.finditer(r'(\d{5,15})\s*[- ]\s*([A-ZÀ-Ÿ\s\'\n\|]+?)(?=(?:\n|\s*\|)*(?:\d{5,15}|CH DENTRO|CH FORA|V[IÍ]NCULO|Docente|Técnico|Estudante|Participante|Coordenador|Fiscal|$))', bloco_equipe))
             
             for i, m in enumerate(all_people):
                 siape = m.group(1).strip()
@@ -353,19 +352,18 @@ with aba_gerador:
                 
                 m_vinc = re.search(r'(Docente|Técnico[- ]Administrativo|Estudante de Pós-graduação|Estudante de Graduação|Estudante|Pesquisador|Participante Externo|Visitante|Servidor|Outro)', chunk, re.IGNORECASE)
                 
-                if m_vinc or "CH DENTRO" in chunk or "CH FORA" in chunk:
+                if m_vinc:
                     vinculo = m_vinc.group(1).title().replace('- ', '-') if m_vinc else "Outro"
                     if "Técnico" in vinculo and "Administrativo" in vinculo: vinculo = "Técnico-Administrativo em Educação"
                     
                     lotacao = ""
-                    if m_vinc:
-                        text_after_vinc = chunk[m_vinc.end():].strip()
-                        text_after_vinc = re.sub(r'\s*\|\s*', ' ', text_after_vinc)
-                        m_lot = re.search(r'^(.*?)(?=\s+(Participante|Coordenador|Fiscal|Não informado|Sim|Não|Nao|\d{5,15}))', text_after_vinc, re.IGNORECASE | re.DOTALL)
-                        lotacao = m_lot.group(1).strip() if m_lot else ""
-                        lotacao = re.sub(r'^(em Educação|de Graduação|de Pós-graduação|de Ensino Médio|de graduação)\s*', '', lotacao, flags=re.IGNORECASE).strip()
-                        lotacao = lotacao.replace("CURSO/LOTAÇÃO\n", "").strip()
-                        
+                    text_after_vinc = chunk[m_vinc.end():].strip()
+                    text_after_vinc = re.sub(r'\s*\|\s*', ' ', text_after_vinc)
+                    m_lot = re.search(r'^(.*?)(?=\s+(Participante|Coordenador|Fiscal|Não informado|Sim|Não|Nao|\d{5,15}))', text_after_vinc, re.IGNORECASE | re.DOTALL)
+                    lotacao = m_lot.group(1).strip() if m_lot else ""
+                    lotacao = re.sub(r'^(em Educação|de Graduação|de Pós-graduação|de Ensino Médio|de graduação)\s*', '', lotacao, flags=re.IGNORECASE).strip()
+                    lotacao = lotacao.replace("CURSO/LOTAÇÃO\n", "").strip()
+                    
                     m_info = re.search(r'(Coordenador Administrativo|Coordenador|Estagiário|Colaborador|Fiscal|Participante|Membro|Pesquisador|Responsável Técnico|Responsável|Técnico|Bolsista)\s+(Sim|Não|Nao)[\s\S]*?(\d+)\s+(\d+)\s+(\d{2}/\d{2}/\d{4})\s+(\d{2}/\d{2}/\d{4})', chunk, re.IGNORECASE)
                     funcao, bolsa, ch_d, ch_f, data_ini, data_fim = "Participante", "Não", "0", "0", "", ""
                     if m_info:
@@ -628,9 +626,6 @@ with aba_gerador:
                     nome_pasta_principal = re.sub(r'[\\/*?:"<>|]', "", nome_pasta_principal)
 
                     arquivos_na_pasta = [f for f in os.listdir(pasta_alvo) if not f.startswith("~$")]
-                    
-                    # LISTA DE PALAVRAS-CHAVE ATUALIZADA E BLINDADA
-                    keywords_individuais = ["ch_dentro", "ch_fora", "conflito", "participante", "membro", "declaracao", "declaração", "termo", "carga_horaria", "laboratorio", "laboratório"]
 
                     zip_buffer = io.BytesIO()
                     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
@@ -639,43 +634,60 @@ with aba_gerador:
                             if arquivo.endswith(".docx"):
                                 caminho_arquivo = os.path.join(pasta_alvo, arquivo)
                                 nome_minusculo = arquivo.lower()
-                                is_individual = any(kw in nome_minusculo for kw in keywords_individuais)
+                                
+                                # NOVO MOTOR DE ROTEAMENTO POR CARGO
+                                is_fiscal_doc = "fiscal" in nome_minusculo
+                                is_coord_adm_doc = "coord_adm" in nome_minusculo or "administrativo" in nome_minusculo
+                                is_coord_doc = ("coord" in nome_minusculo or "coordenador" in nome_minusculo) and not is_coord_adm_doc
+                                
+                                kw_gerais_individuais = ["ch_dentro", "dentro da jornada", "ch_fora", "fora da jornada", "conflito", "laboratorio", "laboratório"]
+                                is_general_individual = any(kw in nome_minusculo for kw in kw_gerais_individuais)
 
-                                if is_individual:
+                                if is_fiscal_doc or is_coord_adm_doc or is_coord_doc or is_general_individual:
                                     for membro in equipe_final:
-                                        if not membro.get("Nome") or str(membro.get("Nome")).strip() == "": continue
+                                        nome_membro = str(membro.get("Nome", "")).strip()
+                                        if not nome_membro: continue
                                         
                                         vinculo_membro = str(membro.get("Vínculo", "")).lower()
                                         funcao_membro = str(membro.get("Função", "")).lower()
                                         
-                                        if "estudante" in vinculo_membro or "bolsista" in funcao_membro or "estagiário" in funcao_membro or "estagiario" in funcao_membro:
-                                            if arquivo == arquivos_na_pasta[0] or len(estudantes_ignorados_log) < sum("estudante" in str(m.get("Vínculo", "")).lower() for m in equipe_final):
-                                                if membro.get("Nome") not in estudantes_ignorados_log:
-                                                    estudantes_ignorados_log.append(str(membro.get("Nome")))
-                                            continue 
+                                        # Filtros exclusivos de Chefias - O documento só é gerado se a pessoa ocupar o cargo
+                                        if is_fiscal_doc and "fiscal" not in funcao_membro: continue
+                                        if is_coord_adm_doc and "administrativo" not in funcao_membro: continue
+                                        if is_coord_doc and ("coordenador" not in funcao_membro or "administrativo" in funcao_membro): continue
+                                        
+                                        # Filtros para Documentos de Equipe (Carga Horária, Conflito, Laboratório)
+                                        if is_general_individual:
+                                            if "estudante" in vinculo_membro or "bolsista" in funcao_membro or "estagiário" in funcao_membro or "estagiario" in funcao_membro:
+                                                if arquivo == arquivos_na_pasta[0] or len(estudantes_ignorados_log) < sum("estudante" in str(m.get("Vínculo", "")).lower() for m in equipe_final):
+                                                    if nome_membro not in estudantes_ignorados_log:
+                                                        estudantes_ignorados_log.append(nome_membro)
+                                                continue 
 
-                                        # BLINDAGEM DO FISCAL: O Fiscal do projeto não assina documentos da equipe executora
-                                        if "fiscal" in funcao_membro:
-                                            continue
+                                            if "fiscal" in funcao_membro:
+                                                continue
 
-                                        ch_d_val = str(membro.get("CH_D", "0")).strip()
-                                        ch_f_val = str(membro.get("CH_F", "0")).strip()
+                                            ch_d_val = str(membro.get("CH_D", "0")).strip()
+                                            ch_f_val = str(membro.get("CH_F", "0")).strip()
 
-                                        if "ch_dentro" in nome_minusculo and ch_d_val in ["0", "0.0", "0,0", "-", ""]: continue
-                                        if "ch_fora" in nome_minusculo and ch_f_val in ["0", "0.0", "0,0", "-", ""]: continue
+                                            if any(kw in nome_minusculo for kw in ["ch_dentro", "dentro da jornada"]) and ch_d_val in ["0", "0.0", "0,0", "-", ""]: 
+                                                continue
+                                            if any(kw in nome_minusculo for kw in ["ch_fora", "fora da jornada"]) and ch_f_val in ["0", "0.0", "0,0", "-", ""]: 
+                                                continue
 
-                                        nome_limpo = re.sub(r'[^\w]', '_', str(membro.get("Nome")))[:40].strip('_')
+                                        # Geração do arquivo direto na pasta individual do Membro
+                                        nome_limpo = re.sub(r'[^\w]', '_', nome_membro)[:40].strip('_')
                                         nome_doc_sem_ext = arquivo.replace(".docx", "")
 
                                         try:
                                             doc_ind = DocxTemplate(caminho_arquivo)
                                             ctx_membro = ctx_global.copy()
                                             ctx_membro.update(membro)
-                                            ctx_membro["participante"] = membro.get("Nome", "")
-                                            ctx_membro["siape"] = membro.get("SIAPE", "")
-                                            ctx_membro["cargo"] = membro.get("Função", "")
-                                            ctx_membro["ch_dentro"] = membro.get("CH_D", "0")
-                                            ctx_membro["ch_fora"] = membro.get("CH_F", "0")
+                                            ctx_membro["participante"] = nome_membro
+                                            ctx_membro["siape"] = str(membro.get("SIAPE", ""))
+                                            ctx_membro["cargo"] = str(membro.get("Função", ""))
+                                            ctx_membro["ch_dentro"] = ch_d_val if 'ch_d_val' in locals() else "0"
+                                            ctx_membro["ch_fora"] = ch_f_val if 'ch_f_val' in locals() else "0"
 
                                             chefia_nome_val = str(membro.get("Chefia Imediata", ""))
                                             ctx_membro["chefia_imediata"] = chefia_nome_val
@@ -686,11 +698,12 @@ with aba_gerador:
                                             doc_ind.render(ctx_membro)
                                             doc_buffer = io.BytesIO()
                                             doc_ind.save(doc_buffer)
-                                            zip_file.writestr(f"02_Documentos_Individuais/{nome_limpo}/{nome_limpo}_{nome_doc_sem_ext}.docx", doc_buffer.getvalue())
+                                            zip_file.writestr(f"02_Documentos_Individuais_Equipe/{nome_limpo}/{nome_limpo}_{nome_doc_sem_ext}.docx", doc_buffer.getvalue())
                                         except Exception as e:
-                                            logs.append(f"Erro em {arquivo} para {membro.get('Nome')}: {str(e)}")
+                                            logs.append(f"Erro em {arquivo} para {nome_membro}: {str(e)}")
 
                                 else:
+                                    # Se não é nenhum dos anteriores, é um Documento Geral Clássico
                                     try:
                                         doc = DocxTemplate(caminho_arquivo)
                                         doc.render(ctx_global)
@@ -1005,4 +1018,4 @@ with aba_gerador:
         )
 
 st.markdown("<br><hr>", unsafe_allow_html=True)
-st.markdown("<div style='text-align: center; color: #888888; padding: 10px; font-size: 14px;'>⚡ <b>Raichu Pro V5.3 (Filtro Inteligente do Fiscal)</b> | Desenvolvido por Julio Maia 👨‍💻</div>", unsafe_allow_html=True)
+st.markdown("<div style='text-align: center; color: #888888; padding: 10px; font-size: 14px;'>⚡ <b>Raichu Pro V5.6 (Pastas Individuais Inteligentes)</b> | Desenvolvido por Julio Maia 👨‍💻</div>", unsafe_allow_html=True)
