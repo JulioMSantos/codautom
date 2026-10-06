@@ -47,7 +47,7 @@ with aba_inicio:
     with col_side:
         with st.container(border=True):
             st.markdown("### ℹ️ Informações da Versão")
-            st.markdown("**Versão:** 5.6.0 (Pastas Individuais Inteligentes)")
+            st.markdown("**Versão:** 5.7.0 (Scanner Perfeito de Chefias Múltiplas)")
             st.markdown("**Desenvolvido por:** Julio Maia dos Santos - Estudante de graduação em Engenharia Elétrica 👨‍💻⚡")
             st.markdown("**Arquitetura:** Python Nativo (Streamlit Cloud)")
             st.divider()
@@ -180,8 +180,11 @@ with aba_gerador:
                 r'(?i)UNIDADE\s+FUN[ÇC][ÃA]O\s+VALOR\s+IN[ÍI]CIO\s+T[ÉE]RMINO',
                 r'(?i)TIPO\s+DE\s+CLASSIFICA[ÇC][ÃA]O\s+CLASSIFICA[ÇC][ÃA]O'
             ]
+            
+            # Precisamos processar as equipes antes de apagar os lixos para usar os blocos de dados
+            full_text_limpo = texto_limpo
             for lixo in lixos_para_apagar:
-                texto_limpo = re.sub(lixo, ' ', texto_limpo)
+                full_text_limpo = re.sub(lixo, ' ', full_text_limpo)
 
             for sigla in ["FATEC", "FUNDEP", "FAURGS", "FDMS"]:
                 if re.search(r'\b' + sigla + r'\b', texto_limpo, re.IGNORECASE):
@@ -333,71 +336,60 @@ with aba_gerador:
                         dados_extraidos["classificacoes_raw"].append({"Tipo de Classificação": line, "Classificação": ""})
 
             # =========================================================
-            # 🔥 NOVO SCANNER BLINDADO DE EQUIPE COM CHEFIAS
+            # 🔥 NOVO SCANNER CIRÚRGICO DE EQUIPE (V5.7.0)
             # =========================================================
+            # O scanner agora isola cada pessoa pelas informações numéricas de Carga Horária que encerram o seu bloco.
             bloco_equipe = extrair_bloco(r'Resultados esperados:', [r'UNIDADES VINCULADAS\s*\n', r'CLASSIFICAÇÕES'])
             if not bloco_equipe:
-                bloco_equipe = texto_limpo
+                bloco_equipe = full_text_limpo
 
-            all_people = list(re.finditer(r'(\d{5,15})\s*[- ]\s*([A-ZÀ-Ÿ\s\'\n\|]+?)(?=(?:\n|\s*\|)*(?:\d{5,15}|CH DENTRO|CH FORA|V[IÍ]NCULO|Docente|Técnico|Estudante|Participante|Coordenador|Fiscal|$))', bloco_equipe))
+            matches_chunk = list(re.finditer(r'(\d+)\s+(\d+)\s+(\d{2}/\d{2}/\d{4})\s+(\d{2}/\d{2}/\d{4})', bloco_equipe))
+            last_pos = 0
             
-            for i, m in enumerate(all_people):
-                siape = m.group(1).strip()
-                nome = m.group(2).replace('\n', ' ').replace('|', '').strip()
-                nome = re.sub(r'\s+', ' ', nome)
+            for m in matches_chunk:
+                chunk = bloco_equipe[last_pos:m.end()]
+                last_pos = m.end()
                 
-                start_pos = m.end()
-                end_pos = all_people[i+1].start() if i+1 < len(all_people) else len(bloco_equipe)
-                chunk = bloco_equipe[start_pos:end_pos]
+                # Procura todas as pessoas citadas dentro do bloco do participante
+                pessoas = re.findall(r'(\d{5,15})\s*[- ]\s*([A-ZÀ-Ÿ\s\']+?)(?=(?:\n|$|Docente|Técnico|Estudante|Participante|Coordenador|Fiscal))', chunk)
+                if not pessoas: continue
+                    
+                siape = pessoas[0][0]
+                nome = pessoas[0][1].strip()
                 
+                boss_siape, boss_nome = "", ""
+                if len(pessoas) > 1:
+                    boss_siape = pessoas[1][0]
+                    boss_nome = pessoas[1][1].strip()
+                    
                 m_vinc = re.search(r'(Docente|Técnico[- ]Administrativo|Estudante de Pós-graduação|Estudante de Graduação|Estudante|Pesquisador|Participante Externo|Visitante|Servidor|Outro)', chunk, re.IGNORECASE)
+                vinculo = m_vinc.group(1).title().replace('- ', '-') if m_vinc else "Outro"
+                if "Técnico" in vinculo and "Administrativo" in vinculo: vinculo = "Técnico-Administrativo em Educação"
                 
+                lotacao = ""
                 if m_vinc:
-                    vinculo = m_vinc.group(1).title().replace('- ', '-') if m_vinc else "Outro"
-                    if "Técnico" in vinculo and "Administrativo" in vinculo: vinculo = "Técnico-Administrativo em Educação"
-                    
-                    lotacao = ""
                     text_after_vinc = chunk[m_vinc.end():].strip()
-                    text_after_vinc = re.sub(r'\s*\|\s*', ' ', text_after_vinc)
-                    m_lot = re.search(r'^(.*?)(?=\s+(Participante|Coordenador|Fiscal|Não informado|Sim|Não|Nao|\d{5,15}))', text_after_vinc, re.IGNORECASE | re.DOTALL)
-                    lotacao = m_lot.group(1).strip() if m_lot else ""
-                    lotacao = re.sub(r'^(em Educação|de Graduação|de Pós-graduação|de Ensino Médio|de graduação)\s*', '', lotacao, flags=re.IGNORECASE).strip()
-                    lotacao = lotacao.replace("CURSO/LOTAÇÃO\n", "").strip()
+                    m_lot = re.search(r'^(.*?)(?=\s*(?:\d{5,15}|Participante|Coordenador|Fiscal|Não informado|Sim|Não|Nao|\n))', text_after_vinc, re.IGNORECASE | re.DOTALL)
+                    if m_lot:
+                        lotacao = m_lot.group(1).strip()
+                        lotacao = re.sub(r'^(em Educação|de Graduação|de Pós-graduação|de Ensino Médio|de graduação)\s*', '', lotacao, flags=re.IGNORECASE).strip()
+                        
+                m_func = re.search(r'(Coordenador Administrativo|Coordenador|Estagiário|Colaborador|Fiscal|Participante|Membro|Pesquisador|Responsável Técnico|Responsável|Técnico|Bolsista)\s+(Sim|Não|Nao)', chunk, re.IGNORECASE)
+                funcao = m_func.group(1).title() if m_func else "Participante"
+                bolsa = m_func.group(2).title() if m_func else "Não"
+                
+                ch_d = m.group(1)
+                ch_f = m.group(2)
+                data_ini = m.group(3)
+                data_fim = m.group(4)
                     
-                    m_info = re.search(r'(Coordenador Administrativo|Coordenador|Estagiário|Colaborador|Fiscal|Participante|Membro|Pesquisador|Responsável Técnico|Responsável|Técnico|Bolsista)\s+(Sim|Não|Nao)[\s\S]*?(\d+)\s+(\d+)\s+(\d{2}/\d{2}/\d{4})\s+(\d{2}/\d{2}/\d{4})', chunk, re.IGNORECASE)
-                    funcao, bolsa, ch_d, ch_f, data_ini, data_fim = "Participante", "Não", "0", "0", "", ""
-                    if m_info:
-                        funcao = m_info.group(1).title()
-                        bolsa = m_info.group(2).title()
-                        ch_d = m_info.group(3)
-                        ch_f = m_info.group(4)
-                        data_ini = m_info.group(5)
-                        data_fim = m_info.group(6)
-                    else:
-                        m_ch = re.search(r'CH DENTRO\s*(?:\|\s*)?(\d+)', chunk, re.IGNORECASE)
-                        if m_ch: ch_d = m_ch.group(1)
-                        
-                        m_chf = re.search(r'CH FORA\s*(?:\|\s*)?(\d+)', chunk, re.IGNORECASE)
-                        if m_chf: ch_f = m_chf.group(1)
-                        
-                        m_ini = re.search(r'(\d{2}/\d{2}/\d{4})\s*(?:\|\s*)?(\d{2}/\d{2}/\d{4})', chunk)
-                        if m_ini:
-                            data_ini = m_ini.group(1)
-                            data_fim = m_ini.group(2)
-                            
-                        m_func = re.search(r'(Coordenador Administrativo|Coordenador|Estagiário|Colaborador|Fiscal|Participante|Membro|Pesquisador|Responsável Técnico|Responsável|Técnico|Bolsista)', chunk, re.IGNORECASE)
-                        if m_func: funcao = m_func.group(1).title()
-                        
-                    dados_extraidos["equipe_raw"].append({
-                        "Nome": nome, "SIAPE": siape, "Vínculo": vinculo, "Lotação": lotacao,
-                        "Função": funcao, "Bolsa": bolsa, "CH_D": ch_d, "CH_F": ch_f, "Início": data_ini, "Término": data_fim,
-                        "Chefia Imediata": "", "SIAPE Chefia": ""
-                    })
-                else:
-                    if dados_extraidos["equipe_raw"]:
-                        dados_extraidos["equipe_raw"][-1]["Chefia Imediata"] = nome.replace('PARTICIPANTE', '').strip()
-                        dados_extraidos["equipe_raw"][-1]["SIAPE Chefia"] = siape
+                dados_extraidos["equipe_raw"].append({
+                    "Nome": nome, "SIAPE": siape, "Vínculo": vinculo, "Lotação": lotacao,
+                    "Função": funcao, "Bolsa": bolsa, "CH_D": ch_d, "CH_F": ch_f, "Início": data_ini, "Término": data_fim,
+                    "Chefia Imediata": boss_nome, "SIAPE Chefia": boss_siape
+                })
             
+            # Preenchimento de salvaguarda apenas para quem restou completamente sem chefe no documento (alunos/etc)
             for p in dados_extraidos["equipe_raw"]:
                 if not p.get("Chefia Imediata") and "Estudante" not in p.get("Vínculo", ""):
                     p["Chefia Imediata"] = dados_extraidos.get("chefe_nome", "")
@@ -635,7 +627,7 @@ with aba_gerador:
                                 caminho_arquivo = os.path.join(pasta_alvo, arquivo)
                                 nome_minusculo = arquivo.lower()
                                 
-                                # NOVO MOTOR DE ROTEAMENTO POR CARGO
+                                # Motor de Roteamento por Cargo
                                 is_fiscal_doc = "fiscal" in nome_minusculo
                                 is_coord_adm_doc = "coord_adm" in nome_minusculo or "administrativo" in nome_minusculo
                                 is_coord_doc = ("coord" in nome_minusculo or "coordenador" in nome_minusculo) and not is_coord_adm_doc
@@ -651,12 +643,12 @@ with aba_gerador:
                                         vinculo_membro = str(membro.get("Vínculo", "")).lower()
                                         funcao_membro = str(membro.get("Função", "")).lower()
                                         
-                                        # Filtros exclusivos de Chefias - O documento só é gerado se a pessoa ocupar o cargo
+                                        # Filtros exclusivos de Chefias - Gera na pasta da pessoa se ela tiver o cargo
                                         if is_fiscal_doc and "fiscal" not in funcao_membro: continue
                                         if is_coord_adm_doc and "administrativo" not in funcao_membro: continue
                                         if is_coord_doc and ("coordenador" not in funcao_membro or "administrativo" in funcao_membro): continue
                                         
-                                        # Filtros para Documentos de Equipe (Carga Horária, Conflito, Laboratório)
+                                        # Filtros de Segurança para Equipe (CH, Conflito, Lab)
                                         if is_general_individual:
                                             if "estudante" in vinculo_membro or "bolsista" in funcao_membro or "estagiário" in funcao_membro or "estagiario" in funcao_membro:
                                                 if arquivo == arquivos_na_pasta[0] or len(estudantes_ignorados_log) < sum("estudante" in str(m.get("Vínculo", "")).lower() for m in equipe_final):
@@ -675,7 +667,7 @@ with aba_gerador:
                                             if any(kw in nome_minusculo for kw in ["ch_fora", "fora da jornada"]) and ch_f_val in ["0", "0.0", "0,0", "-", ""]: 
                                                 continue
 
-                                        # Geração do arquivo direto na pasta individual do Membro
+                                        # Geração perfeitamente roteada na pasta com o NOME do participante
                                         nome_limpo = re.sub(r'[^\w]', '_', nome_membro)[:40].strip('_')
                                         nome_doc_sem_ext = arquivo.replace(".docx", "")
 
@@ -698,12 +690,12 @@ with aba_gerador:
                                             doc_ind.render(ctx_membro)
                                             doc_buffer = io.BytesIO()
                                             doc_ind.save(doc_buffer)
-                                            zip_file.writestr(f"02_Documentos_Individuais_Equipe/{nome_limpo}/{nome_limpo}_{nome_doc_sem_ext}.docx", doc_buffer.getvalue())
+                                            zip_file.writestr(f"02_Documentos_Individuais/{nome_limpo}/{nome_limpo}_{nome_doc_sem_ext}.docx", doc_buffer.getvalue())
                                         except Exception as e:
                                             logs.append(f"Erro em {arquivo} para {nome_membro}: {str(e)}")
 
                                 else:
-                                    # Se não é nenhum dos anteriores, é um Documento Geral Clássico
+                                    # Se não atende aos filtros acima, é um documento Geral (Ex: Plano de Trabalho)
                                     try:
                                         doc = DocxTemplate(caminho_arquivo)
                                         doc.render(ctx_global)
@@ -1018,4 +1010,4 @@ with aba_gerador:
         )
 
 st.markdown("<br><hr>", unsafe_allow_html=True)
-st.markdown("<div style='text-align: center; color: #888888; padding: 10px; font-size: 14px;'>⚡ <b>Raichu Pro V5.6 (Pastas Individuais Inteligentes)</b> | Desenvolvido por Julio Maia 👨‍💻</div>", unsafe_allow_html=True)
+st.markdown("<div style='text-align: center; color: #888888; padding: 10px; font-size: 14px;'>⚡ <b>Raichu Pro V5.7 (Scanner Perfeito de Chefias)</b> | Desenvolvido por Julio Maia 👨‍💻</div>", unsafe_allow_html=True)
