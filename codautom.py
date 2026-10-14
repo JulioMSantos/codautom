@@ -47,7 +47,7 @@ with aba_inicio:
     with col_side:
         with st.container(border=True):
             st.markdown("### ℹ️ Informações da Versão")
-            st.markdown("**Versão:** 5.9.0 (Leitura Universal e Injeção de Equipe no Excel)")
+            st.markdown("**Versão:** 5.9.1 (Blindagem de ACT e Limpeza de Nomes)")
             st.markdown("**Desenvolvido por:** Julio Maia dos Santos - Estudante de graduação em Engenharia Elétrica 👨‍💻⚡")
             st.markdown("**Arquitetura:** Python Nativo (Streamlit Cloud)")
             st.divider()
@@ -202,11 +202,23 @@ with aba_gerador:
             dados_extraidos["data_termino_proj"] = extrair(r'Término:\s*(\d{2}/\d{2}/\d{4})')
             dados_extraidos["classificacao"] = extrair(r'Classificação:\s*(.*?)\n')
             dados_extraidos["empresa"] = extrair(r'(?:Financiador[a]?|Empresa|Cooperante|Financiador|Instituição):\s*(.*?)\n')
-            dados_extraidos["instrumento_juridico_pdf"] = extrair(r'Instrumento jurídico celebrado:\s*([^\n]+)')
+            
+            # --- FIX: TRAVA DO INSTRUMENTO JURÍDICO PARA ACT LOGO NA EXTRAÇÃO ---
+            instr_temp = extrair(r'Instrumento jurídico celebrado:\s*([^\n]+)')
+            if dados_extraidos["tipo_processo_sugerido"] == "Acordo de Cooperação Técnica (ACT)":
+                dados_extraidos["instrumento_juridico_pdf"] = "Acordo de Cooperação Técnica"
+            else:
+                dados_extraidos["instrumento_juridico_pdf"] = instr_temp
 
+            # --- FIX: LIMPEZA DO PREFIXO "NOME: " DO COORDENADOR ---
             m_coord = re.search(r'Responsável pelo projeto:\s*(.*?)\s*\(\s*(\d+)\s*\)', texto_limpo, re.IGNORECASE)
             if not m_coord: m_coord = re.search(r'Responsável pelo projeto:\s*\nNome:\s*(.*?)\s*\(\s*(\d+)\s*\)', texto_limpo, re.IGNORECASE)
-            if m_coord: dados_extraidos["coord_geral_pdf"] = {"nome": m_coord.group(1).strip(), "siape": m_coord.group(2).strip()}
+            
+            if m_coord:
+                nome_coord_cru = m_coord.group(1).strip()
+                # A regex abaixo arranca fora o "Nome:" e seus espaços
+                nome_coord_limpo = re.sub(r'^[Nn]ome:\s*', '', nome_coord_cru).strip()
+                dados_extraidos["coord_geral_pdf"] = {"nome": nome_coord_limpo, "siape": m_coord.group(2).strip()}
 
             m_fisc = re.search(r'Fiscal:\s*(\d+)\s*-\s*(.*?)\s*\(', texto_limpo, re.IGNORECASE)
             if m_fisc: dados_extraidos["fiscal_pdf"] = {"siape": m_fisc.group(1).strip(), "nome": m_fisc.group(2).strip()}
@@ -490,7 +502,11 @@ with aba_gerador:
                 siape_diretor = st.text_input("SIAPE do Diretor", value=dados_extraidos.get("diretor_siape", ""))
                 st.text_input("Classificação", value=dados_extraidos.get("classificacao", ""), disabled=True)
                 data_termino_edit = st.text_input("Data de Término", value=dados_extraidos.get("data_termino_proj", ""))
-                instrumento_juridico_edit = st.text_input("Instrumento Jurídico (Excel)", value=dados_extraidos.get("instrumento_juridico_pdf", ""))
+                
+                # --- FIX: TRAVA VISUAL DO INSTRUMENTO JURÍDICO PARA ACT ---
+                valor_instr_editavel = "Acordo de Cooperação Técnica" if tipo_processo == "Acordo de Cooperação Técnica (ACT)" else dados_extraidos.get("instrumento_juridico_pdf", "")
+                instrumento_juridico_edit = st.text_input("Instrumento Jurídico (Excel)", value=valor_instr_editavel)
+                
                 resultados = st.text_area("Resultados Esperados", value=dados_extraidos.get("resultados", ""), height=120)
                 metas = st.text_area("Metas do Projeto", value=dados_extraidos.get("metas", ""), height=120)
 
@@ -567,6 +583,7 @@ with aba_gerador:
                 if tipo_processo == "Acordo de Parceria (AP)": base_instr = "Acordo de Parceria"
                 elif tipo_processo == "Contrato Global (CG)": base_instr = "Contrato"
 
+                # --- FIX: TRAVA NA CONSTRUÇÃO DA CLASSIFICAÇÃO PARA ACT ---
                 sufixo_classificacao = dados_extraidos.get("classificacao", "").strip()
                 for c in dados_extraidos["classificacoes_raw"]:
                     if "caracterização das ações de extensão" in str(c.get("Tipo de Classificação", "")).lower():
@@ -576,6 +593,10 @@ with aba_gerador:
                         break
                 
                 texto_instrumento_completo = f"{base_instr} com {sufixo_classificacao}" if sufixo_classificacao else base_instr
+                
+                if tipo_processo == "Acordo de Cooperação Técnica (ACT)":
+                    instrumento_juridico_edit = "Acordo de Cooperação Técnica"
+                    texto_instrumento_completo = "Acordo de Cooperação Técnica"
 
                 if tipo_processo == "Contrato Global (CG)": pasta_alvo = f"Modelos/AG/{fund_sigla}" if status_fund == "Já definida" else "Modelos/AG/SEM"
                 elif tipo_processo == "Acordo de Parceria (AP)": pasta_alvo = f"Modelos/AP/{fund_sigla}" if status_fund == "Já definida" else "Modelos/AP/SEM"
@@ -823,24 +844,16 @@ with aba_gerador:
                                         break
                                         
                                 if linha_cabecalho_equipe:
-                                    # Pula exatamente 2 linhas a partir de onde achou "NOME" e "SIAPE"
-                                    # Isso resolve o problema de sobrepor as mesclagens (linhas 115 e 116)
                                     linha_atual = linha_cabecalho_equipe + 2 
                                     
                                     for membro in equipe_final:
                                         nome_m = str(membro.get("Nome", "")).strip()
                                         if not nome_m: continue
                                         
-                                        # Escrever a Função na Coluna A (onde fica "Pessoal Envolvido")
                                         escrever_excel(f"A{linha_atual}", membro.get("Função", ""))
-                                        
-                                        # Escrever o Nome na Coluna C
                                         escrever_excel(f"C{linha_atual}", nome_m)
-                                        
-                                        # Escrever o SIAPE na Coluna F
                                         escrever_excel(f"F{linha_atual}", membro.get("SIAPE", ""))
                                         
-                                        # Calcular a Carga Horária e Escrever na Coluna I
                                         try: ch_total = str(int(float(membro.get("CH_D", "0") or "0")) + int(float(membro.get("CH_F", "0") or "0")))
                                         except: ch_total = "0"
                                         escrever_excel(f"I{linha_atual}", ch_total)
@@ -942,7 +955,7 @@ with aba_gerador:
                                                     if cell_txt in valores_fixos:
                                                         escrever_excel(f"K{row_idx}", valores_fixos[cell_txt])
                                                         break 
-                                                            
+                                                    
                                         if "Fontes_3.1" in wb_fin.sheetnames:
                                             for row in wb_fin["Fontes_3.1"].iter_rows(min_row=2, values_only=True):
                                                 fonte, check, tit_f, reg_f = row[0], row[1], row[2], row[3]
@@ -1030,4 +1043,4 @@ with aba_gerador:
         )
 
 st.markdown("<br><hr>", unsafe_allow_html=True)
-st.markdown("<div style='text-align: center; color: #888888; padding: 10px; font-size: 14px;'>⚡ <b>Raichu Pro V5.9 (Leitura Universal e Injeção de Equipe no Excel)</b> | Desenvolvido por Julio Maia 👨‍💻</div>", unsafe_allow_html=True)
+st.markdown("<div style='text-align: center; color: #888888; padding: 10px; font-size: 14px;'>⚡ <b>Raichu Pro V5.9.1 (Blindagem de ACT e Limpeza de Nomes)</b> | Desenvolvido por Julio Maia 👨‍💻</div>", unsafe_allow_html=True)
