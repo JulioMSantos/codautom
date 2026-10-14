@@ -47,7 +47,7 @@ with aba_inicio:
     with col_side:
         with st.container(border=True):
             st.markdown("### ℹ️ Informações da Versão")
-            st.markdown("**Versão:** 5.9.1 (Blindagem de ACT e Limpeza de Nomes)")
+            st.markdown("**Versão:** 5.9.2 (Leitura Precisa de Chefia Imediata)")
             st.markdown("**Desenvolvido por:** Julio Maia dos Santos - Estudante de graduação em Engenharia Elétrica 👨‍💻⚡")
             st.markdown("**Arquitetura:** Python Nativo (Streamlit Cloud)")
             st.divider()
@@ -203,20 +203,17 @@ with aba_gerador:
             dados_extraidos["classificacao"] = extrair(r'Classificação:\s*(.*?)\n')
             dados_extraidos["empresa"] = extrair(r'(?:Financiador[a]?|Empresa|Cooperante|Financiador|Instituição):\s*(.*?)\n')
             
-            # --- FIX: TRAVA DO INSTRUMENTO JURÍDICO PARA ACT LOGO NA EXTRAÇÃO ---
             instr_temp = extrair(r'Instrumento jurídico celebrado:\s*([^\n]+)')
             if dados_extraidos["tipo_processo_sugerido"] == "Acordo de Cooperação Técnica (ACT)":
                 dados_extraidos["instrumento_juridico_pdf"] = "Acordo de Cooperação Técnica"
             else:
                 dados_extraidos["instrumento_juridico_pdf"] = instr_temp
 
-            # --- FIX: LIMPEZA DO PREFIXO "NOME: " DO COORDENADOR ---
             m_coord = re.search(r'Responsável pelo projeto:\s*(.*?)\s*\(\s*(\d+)\s*\)', texto_limpo, re.IGNORECASE)
             if not m_coord: m_coord = re.search(r'Responsável pelo projeto:\s*\nNome:\s*(.*?)\s*\(\s*(\d+)\s*\)', texto_limpo, re.IGNORECASE)
             
             if m_coord:
                 nome_coord_cru = m_coord.group(1).strip()
-                # A regex abaixo arranca fora o "Nome:" e seus espaços
                 nome_coord_limpo = re.sub(r'^[Nn]ome:\s*', '', nome_coord_cru).strip()
                 dados_extraidos["coord_geral_pdf"] = {"nome": nome_coord_limpo, "siape": m_coord.group(2).strip()}
 
@@ -347,7 +344,7 @@ with aba_gerador:
                         dados_extraidos["classificacoes_raw"].append({"Tipo de Classificação": line, "Classificação": ""})
 
             # =========================================================
-            # 🔥 LEITOR UNIVERSAL DE NOMES E EQUIPE (V5.9.0)
+            # 🔥 LEITOR UNIVERSAL DE NOMES E EQUIPE (V5.9.2)
             # =========================================================
             bloco_equipe = extrair_bloco(r'Resultados esperados:', [r'UNIDADES VINCULADAS\s*\n', r'CLASSIFICAÇÕES'])
             if not bloco_equipe:
@@ -360,8 +357,8 @@ with aba_gerador:
                 chunk = bloco_equipe[last_pos:m.end()]
                 last_pos = m.end()
                 
-                # Regex flexível que aceita nomes mistos, com apóstrofos, acentos e quebras de linha
-                pessoas = re.findall(r'(\d{5,15})\s*[- ]\s*([A-Za-zÀ-ÿ\s\'\.\-]+?)(?=\s+(?:Docente|Técnico|Estudante|Pesquisador|Participante|Coordenador|Fiscal|Membro|Bolsista|Servidor|Visitante|Outro|\n|$))', chunk, re.IGNORECASE)
+                # --- FIX: INCLUSÃO DE CH DENTRO/CH FORA NO LOOKAHEAD PARA CORTAR CORRETAMENTE A CHEFIA ---
+                pessoas = re.findall(r'(\d{5,15})\s*[- ]\s*([A-Za-zÀ-ÿ\s\'\.\-]+?)(?=\s+(?:Docente|Técnico|Estudante|Pesquisador|Participante|Coordenador|Fiscal|Membro|Bolsista|Servidor|Visitante|Outro|CH DENTRO|CH FORA|CH\b|\n|$))', chunk, re.IGNORECASE)
                 if not pessoas: continue
                     
                 siape = pessoas[0][0]
@@ -503,7 +500,6 @@ with aba_gerador:
                 st.text_input("Classificação", value=dados_extraidos.get("classificacao", ""), disabled=True)
                 data_termino_edit = st.text_input("Data de Término", value=dados_extraidos.get("data_termino_proj", ""))
                 
-                # --- FIX: TRAVA VISUAL DO INSTRUMENTO JURÍDICO PARA ACT ---
                 valor_instr_editavel = "Acordo de Cooperação Técnica" if tipo_processo == "Acordo de Cooperação Técnica (ACT)" else dados_extraidos.get("instrumento_juridico_pdf", "")
                 instrumento_juridico_edit = st.text_input("Instrumento Jurídico (Excel)", value=valor_instr_editavel)
                 
@@ -583,7 +579,6 @@ with aba_gerador:
                 if tipo_processo == "Acordo de Parceria (AP)": base_instr = "Acordo de Parceria"
                 elif tipo_processo == "Contrato Global (CG)": base_instr = "Contrato"
 
-                # --- FIX: TRAVA NA CONSTRUÇÃO DA CLASSIFICAÇÃO PARA ACT ---
                 sufixo_classificacao = dados_extraidos.get("classificacao", "").strip()
                 for c in dados_extraidos["classificacoes_raw"]:
                     if "caracterização das ações de extensão" in str(c.get("Tipo de Classificação", "")).lower():
@@ -1043,4 +1038,4 @@ with aba_gerador:
         )
 
 st.markdown("<br><hr>", unsafe_allow_html=True)
-st.markdown("<div style='text-align: center; color: #888888; padding: 10px; font-size: 14px;'>⚡ <b>Raichu Pro V5.9.1 (Blindagem de ACT e Limpeza de Nomes)</b> | Desenvolvido por Julio Maia 👨‍💻</div>", unsafe_allow_html=True)
+st.markdown("<div style='text-align: center; color: #888888; padding: 10px; font-size: 14px;'>⚡ <b>Raichu Pro V5.9.2 (Leitura Precisa de Chefia Imediata)</b> | Desenvolvido por Julio Maia 👨‍💻</div>", unsafe_allow_html=True)
