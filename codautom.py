@@ -47,7 +47,7 @@ with aba_inicio:
     with col_side:
         with st.container(border=True):
             st.markdown("### ℹ️ Informações da Versão")
-            st.markdown("**Versão:** 5.9.2 (Leitura Precisa de Chefia Imediata)")
+            st.markdown("**Versão:** 5.9.3 (Correção do Plano de Trabalho ACT e Metas)")
             st.markdown("**Desenvolvido por:** Julio Maia dos Santos - Estudante de graduação em Engenharia Elétrica 👨‍💻⚡")
             st.markdown("**Arquitetura:** Python Nativo (Streamlit Cloud)")
             st.divider()
@@ -357,7 +357,6 @@ with aba_gerador:
                 chunk = bloco_equipe[last_pos:m.end()]
                 last_pos = m.end()
                 
-                # --- FIX: INCLUSÃO DE CH DENTRO/CH FORA NO LOOKAHEAD PARA CORTAR CORRETAMENTE A CHEFIA ---
                 pessoas = re.findall(r'(\d{5,15})\s*[- ]\s*([A-Za-zÀ-ÿ\s\'\.\-]+?)(?=\s+(?:Docente|Técnico|Estudante|Pesquisador|Participante|Coordenador|Fiscal|Membro|Bolsista|Servidor|Visitante|Outro|CH DENTRO|CH FORA|CH\b|\n|$))', chunk, re.IGNORECASE)
                 if not pessoas: continue
                     
@@ -775,7 +774,7 @@ with aba_gerador:
                                     escrever_excel("A32", resumo)
                                     escrever_excel("A36", objetivos)
                                     escrever_excel("A40", justificativa)
-                                    escrever_excel("A44", resultados)
+                                    # REMOVIDO PARA O ACT: escrever_excel("A44", resultados) 
                                 
                                 elif fund_sigla == "FDMS":
                                     escrever_excel("C30", tit_proj)
@@ -814,8 +813,9 @@ with aba_gerador:
                                 # =========================================================
                                 # 🔥 INJEÇÃO DAS METAS
                                 # =========================================================
-                                linha_inicio_metas = encontrar_linha_ampla(ws, "(descreva aqui a fase", 300, 400)
-                                linha_secao_51 = encontrar_linha_ampla(ws, "5.1 DESCRIÇÃO DAS ATIVIDADES", 320, 450) or 999
+                                # O range foi ajustado para começar a busca pela linha 40 (onde ficam as metas do ACT)
+                                linha_inicio_metas = encontrar_linha_ampla(ws, "(descreva aqui a fase", 40, 450)
+                                linha_secao_51 = encontrar_linha_ampla(ws, "5.1 DESCRIÇÃO DAS ATIVIDADES", 40, 500) or 999
                                 
                                 if linha_inicio_metas and "metas_fatiadas" in dados_extraidos:
                                     for i, m_fatiada in enumerate(dados_extraidos["metas_fatiadas"]):
@@ -1038,4 +1038,4 @@ with aba_gerador:
         )
 
 st.markdown("<br><hr>", unsafe_allow_html=True)
-st.markdown("<div style='text-align: center; color: #888888; padding: 10px; font-size: 14px;'>⚡ <b>Raichu Pro V5.9.2 (Leitura Precisa de Chefia Imediata)</b> | Desenvolvido por Julio Maia 👨‍💻</div>", unsafe_allow_html=True)
+st.markdown("<div style='text-align: center; color: #888888; padding: 10px; font-size: 14px;'>⚡ <b>Raichu Pro V5.9.3 (Correção do Plano de Trabalho ACT e Metas)</b> | Desenvolvido por Julio Maia 👨‍💻</div>", unsafe_allow_html=True)
