@@ -47,7 +47,7 @@ with aba_inicio:
     with col_side:
         with st.container(border=True):
             st.markdown("### ℹ️ Informações da Versão")
-            st.markdown("**Versão:** 5.7.0 (Scanner Perfeito de Chefias Múltiplas)")
+            st.markdown("**Versão:** 5.9.0 (Leitura Universal e Injeção de Equipe no Excel)")
             st.markdown("**Desenvolvido por:** Julio Maia dos Santos - Estudante de graduação em Engenharia Elétrica 👨‍💻⚡")
             st.markdown("**Arquitetura:** Python Nativo (Streamlit Cloud)")
             st.divider()
@@ -181,7 +181,6 @@ with aba_gerador:
                 r'(?i)TIPO\s+DE\s+CLASSIFICA[ÇC][ÃA]O\s+CLASSIFICA[ÇC][ÃA]O'
             ]
             
-            # Precisamos processar as equipes antes de apagar os lixos para usar os blocos de dados
             full_text_limpo = texto_limpo
             for lixo in lixos_para_apagar:
                 full_text_limpo = re.sub(lixo, ' ', full_text_limpo)
@@ -336,9 +335,8 @@ with aba_gerador:
                         dados_extraidos["classificacoes_raw"].append({"Tipo de Classificação": line, "Classificação": ""})
 
             # =========================================================
-            # 🔥 NOVO SCANNER CIRÚRGICO DE EQUIPE (V5.7.0)
+            # 🔥 LEITOR UNIVERSAL DE NOMES E EQUIPE (V5.9.0)
             # =========================================================
-            # O scanner agora isola cada pessoa pelas informações numéricas de Carga Horária que encerram o seu bloco.
             bloco_equipe = extrair_bloco(r'Resultados esperados:', [r'UNIDADES VINCULADAS\s*\n', r'CLASSIFICAÇÕES'])
             if not bloco_equipe:
                 bloco_equipe = full_text_limpo
@@ -350,17 +348,17 @@ with aba_gerador:
                 chunk = bloco_equipe[last_pos:m.end()]
                 last_pos = m.end()
                 
-                # Procura todas as pessoas citadas dentro do bloco do participante
-                pessoas = re.findall(r'(\d{5,15})\s*[- ]\s*([A-ZÀ-Ÿ\s\']+?)(?=(?:\n|$|Docente|Técnico|Estudante|Participante|Coordenador|Fiscal))', chunk)
+                # Regex flexível que aceita nomes mistos, com apóstrofos, acentos e quebras de linha
+                pessoas = re.findall(r'(\d{5,15})\s*[- ]\s*([A-Za-zÀ-ÿ\s\'\.\-]+?)(?=\s+(?:Docente|Técnico|Estudante|Pesquisador|Participante|Coordenador|Fiscal|Membro|Bolsista|Servidor|Visitante|Outro|\n|$))', chunk, re.IGNORECASE)
                 if not pessoas: continue
                     
                 siape = pessoas[0][0]
-                nome = pessoas[0][1].strip()
+                nome = re.sub(r'\s+', ' ', pessoas[0][1]).strip().title()
                 
                 boss_siape, boss_nome = "", ""
                 if len(pessoas) > 1:
                     boss_siape = pessoas[1][0]
-                    boss_nome = pessoas[1][1].strip()
+                    boss_nome = re.sub(r'\s+', ' ', pessoas[1][1]).strip().title()
                     
                 m_vinc = re.search(r'(Docente|Técnico[- ]Administrativo|Estudante de Pós-graduação|Estudante de Graduação|Estudante|Pesquisador|Participante Externo|Visitante|Servidor|Outro)', chunk, re.IGNORECASE)
                 vinculo = m_vinc.group(1).title().replace('- ', '-') if m_vinc else "Outro"
@@ -389,10 +387,9 @@ with aba_gerador:
                     "Chefia Imediata": boss_nome, "SIAPE Chefia": boss_siape
                 })
             
-            # Preenchimento de salvaguarda apenas para quem restou completamente sem chefe no documento (alunos/etc)
             for p in dados_extraidos["equipe_raw"]:
                 if not p.get("Chefia Imediata") and "Estudante" not in p.get("Vínculo", ""):
-                    p["Chefia Imediata"] = dados_extraidos.get("chefe_nome", "")
+                    p["Chefia Imediata"] = dados_extraidos.get("chefe_nome", "").title()
                     p["SIAPE Chefia"] = dados_extraidos.get("chefe_siape", "")
 
             unidades_blk = extrair_bloco(r'UNIDADES VINCULADAS\s*\n', [r'CLASSIFICAÇÕES', r'REGIÕES DE ATUAÇÃO', r'PARTICIPANTES'])
@@ -500,14 +497,14 @@ with aba_gerador:
         st.markdown("---")
         st.subheader("👨‍🏫 Coordenador e Fiscal do Projeto")
         col_c1, col_c2, col_f1, col_f2 = st.columns(4)
-        c_g_n = col_c1.text_input("Coordenador", value=dados_extraidos.get("coord_geral_pdf", {}).get("nome", "") if dados_extraidos.get("coord_geral_pdf") else "")
+        c_g_n = col_c1.text_input("Coordenador", value=dados_extraidos.get("coord_geral_pdf", {}).get("nome", "").title() if dados_extraidos.get("coord_geral_pdf") else "")
         c_g_s = col_c2.text_input("SIAPE Coord.", value=dados_extraidos.get("coord_geral_pdf", {}).get("siape", "") if dados_extraidos.get("coord_geral_pdf") else "")
-        f_nome = col_f1.text_input("Fiscal", value=dados_extraidos.get("fiscal_pdf", {}).get("nome", "") if dados_extraidos.get("fiscal_pdf") else "")
+        f_nome = col_f1.text_input("Fiscal", value=dados_extraidos.get("fiscal_pdf", {}).get("nome", "").title() if dados_extraidos.get("fiscal_pdf") else "")
         f_siape = col_f2.text_input("SIAPE Fiscal", value=dados_extraidos.get("fiscal_pdf", {}).get("siape", "") if dados_extraidos.get("fiscal_pdf") else "")
 
         st.markdown("---")
         col_adm1, col_adm2 = st.columns(2)
-        nome_coord_adm = col_adm1.text_input("Coordenador Administrativo", value=dados_extraidos.get("coord_adm_nome", ""))
+        nome_coord_adm = col_adm1.text_input("Coordenador Administrativo", value=dados_extraidos.get("coord_adm_nome", "").title())
         siape_coord_adm = col_adm2.text_input("SIAPE Coord. Adm.", value=dados_extraidos.get("coord_adm_siape", ""))
         
         st.markdown("---")
@@ -542,7 +539,7 @@ with aba_gerador:
 
             equipe_final = dados_extraidos["equipe_raw"].copy()
             if f_nome and not any(e["SIAPE"] == f_siape for e in equipe_final):
-                equipe_final.append({"Nome": f_nome, "SIAPE": f_siape, "Vínculo": "Docente", "Lotação": "DEPARTAMENTO", "Função": "Fiscal", "CH_D": "0", "CH_F": "0", "Bolsa": "Não", "Início": "", "Término": "", "Chefia Imediata": dados_extraidos.get("chefe_nome", ""), "SIAPE Chefia": dados_extraidos.get("chefe_siape", "")})
+                equipe_final.append({"Nome": f_nome, "SIAPE": f_siape, "Vínculo": "Docente", "Lotação": "DEPARTAMENTO", "Função": "Fiscal", "CH_D": "0", "CH_F": "0", "Bolsa": "Não", "Início": "", "Término": "", "Chefia Imediata": dados_extraidos.get("chefe_nome", "").title(), "SIAPE Chefia": dados_extraidos.get("chefe_siape", "")})
 
             df_equipe = pd.DataFrame(equipe_final).fillna("")
             df_equipe_edit = st.data_editor(df_equipe, num_rows="dynamic", key="ed_equipe", use_container_width=True)
@@ -627,12 +624,15 @@ with aba_gerador:
                                 caminho_arquivo = os.path.join(pasta_alvo, arquivo)
                                 nome_minusculo = arquivo.lower()
                                 
-                                # Motor de Roteamento por Cargo
                                 is_fiscal_doc = "fiscal" in nome_minusculo
                                 is_coord_adm_doc = "coord_adm" in nome_minusculo or "administrativo" in nome_minusculo
                                 is_coord_doc = ("coord" in nome_minusculo or "coordenador" in nome_minusculo) and not is_coord_adm_doc
                                 
-                                kw_gerais_individuais = ["ch_dentro", "dentro da jornada", "ch_fora", "fora da jornada", "conflito", "laboratorio", "laboratório"]
+                                kw_gerais_individuais = [
+                                    "ch_dentro", "dentro da jornada", "ch_fora", "fora da jornada", 
+                                    "conflito", "ausencia", "ausência", "interesse", 
+                                    "laboratorio", "laboratório"
+                                ]
                                 is_general_individual = any(kw in nome_minusculo for kw in kw_gerais_individuais)
 
                                 if is_fiscal_doc or is_coord_adm_doc or is_coord_doc or is_general_individual:
@@ -643,12 +643,10 @@ with aba_gerador:
                                         vinculo_membro = str(membro.get("Vínculo", "")).lower()
                                         funcao_membro = str(membro.get("Função", "")).lower()
                                         
-                                        # Filtros exclusivos de Chefias - Gera na pasta da pessoa se ela tiver o cargo
                                         if is_fiscal_doc and "fiscal" not in funcao_membro: continue
                                         if is_coord_adm_doc and "administrativo" not in funcao_membro: continue
                                         if is_coord_doc and ("coordenador" not in funcao_membro or "administrativo" in funcao_membro): continue
                                         
-                                        # Filtros de Segurança para Equipe (CH, Conflito, Lab)
                                         if is_general_individual:
                                             if "estudante" in vinculo_membro or "bolsista" in funcao_membro or "estagiário" in funcao_membro or "estagiario" in funcao_membro:
                                                 if arquivo == arquivos_na_pasta[0] or len(estudantes_ignorados_log) < sum("estudante" in str(m.get("Vínculo", "")).lower() for m in equipe_final):
@@ -667,7 +665,6 @@ with aba_gerador:
                                             if any(kw in nome_minusculo for kw in ["ch_fora", "fora da jornada"]) and ch_f_val in ["0", "0.0", "0,0", "-", ""]: 
                                                 continue
 
-                                        # Geração perfeitamente roteada na pasta com o NOME do participante
                                         nome_limpo = re.sub(r'[^\w]', '_', nome_membro)[:40].strip('_')
                                         nome_doc_sem_ext = arquivo.replace(".docx", "")
 
@@ -690,12 +687,11 @@ with aba_gerador:
                                             doc_ind.render(ctx_membro)
                                             doc_buffer = io.BytesIO()
                                             doc_ind.save(doc_buffer)
-                                            zip_file.writestr(f"02_Documentos_Individuais/{nome_limpo}/{nome_limpo}_{nome_doc_sem_ext}.docx", doc_buffer.getvalue())
+                                            zip_file.writestr(f"02_Documentos_Individuais_Equipe/{nome_limpo}/{nome_limpo}_{nome_doc_sem_ext}.docx", doc_buffer.getvalue())
                                         except Exception as e:
                                             logs.append(f"Erro em {arquivo} para {nome_membro}: {str(e)}")
 
                                 else:
-                                    # Se não atende aos filtros acima, é um documento Geral (Ex: Plano de Trabalho)
                                     try:
                                         doc = DocxTemplate(caminho_arquivo)
                                         doc.render(ctx_global)
@@ -791,17 +787,6 @@ with aba_gerador:
                                     escrever_excel("A50", justificativa)
                                     escrever_excel("A54", resultados)
 
-                                def encontrar_linha_geral(planilha, texto_busca, min_row, max_row, cols=[1, 2, 3, 7, 8]):
-                                    for r in range(min_row, max_row):
-                                        for c in cols:
-                                            val = str(planilha.cell(row=r, column=c).value).strip()
-                                            if texto_busca.lower() in val.lower():
-                                                return r
-                                    return None
-
-                                # =========================================================
-                                # 🔥 INJEÇÃO DAS METAS E PROTEÇÃO DA SEÇÃO 5.1
-                                # =========================================================
                                 def encontrar_linha_ampla(planilha, texto_busca, min_row, max_row):
                                     for r in range(min_row, max_row):
                                         for c in range(1, 15):
@@ -810,21 +795,70 @@ with aba_gerador:
                                                 return r
                                     return None
 
+                                # =========================================================
+                                # 🔥 INJEÇÃO DAS METAS
+                                # =========================================================
                                 linha_inicio_metas = encontrar_linha_ampla(ws, "(descreva aqui a fase", 300, 400)
                                 linha_secao_51 = encontrar_linha_ampla(ws, "5.1 DESCRIÇÃO DAS ATIVIDADES", 320, 450) or 999
                                 
                                 if linha_inicio_metas and "metas_fatiadas" in dados_extraidos:
                                     for i, m_fatiada in enumerate(dados_extraidos["metas_fatiadas"]):
                                         linha_alvo = linha_inicio_metas + i
-                                        
-                                        if linha_alvo >= linha_secao_51 - 1:
-                                            break
-                                            
+                                        if linha_alvo >= linha_secao_51 - 1: break
                                         escrever_excel(f"A{linha_alvo}", m_fatiada["Meta"])
                                         escrever_excel(f"C{linha_alvo}", m_fatiada["Fase"])
                                         escrever_excel(f"D{linha_alvo}", m_fatiada["Descricao"])
                                         escrever_excel(f"K{linha_alvo}", m_fatiada["Inicio"])
                                         escrever_excel(f"L{linha_alvo}", m_fatiada["Termino"])
+
+                                # =========================================================
+                                # 🔥 INJEÇÃO DINÂMICA DA EQUIPE NO EXCEL (PLANO DE TRABALHO)
+                                # =========================================================
+                                linha_cabecalho_equipe = None
+                                col_nome = col_siape = col_funcao = col_ch = col_inicio = col_termino = None
+                                
+                                for r in range(40, 400):
+                                    row_str = " ".join([str(ws.cell(row=r, column=c).value).lower() for c in range(1, 15) if ws.cell(row=r, column=c).value])
+                                    if "nome" in row_str and ("siape" in row_str or "matrícula" in row_str or "matricula" in row_str):
+                                        linha_cabecalho_equipe = r
+                                        for c in range(1, 15):
+                                            val = str(ws.cell(row=r, column=c).value).lower().strip()
+                                            if not val or val == "none": continue
+                                            
+                                            if "nome" in val: col_nome = c
+                                            elif "siape" in val or "matrícula" in val or "matricula" in val: col_siape = c
+                                            elif "função" in val or "funcao" in val or "cargo" in val: col_funcao = c
+                                            elif "horária" in val or "horaria" in val or "ch" == val: col_ch = c
+                                            elif "início" in val or "inicio" in val: col_inicio = c
+                                            elif "término" in val or "termino" in val: col_termino = c
+                                        break
+                                        
+                                if linha_cabecalho_equipe and col_nome:
+                                    linha_atual = linha_cabecalho_equipe + 1
+                                    for membro in equipe_final:
+                                        nome_m = str(membro.get("Nome", "")).strip()
+                                        if not nome_m: continue
+                                        
+                                        escrever_excel(f"{openpyxl.utils.get_column_letter(col_nome)}{linha_atual}", nome_m)
+                                        
+                                        if col_siape: 
+                                            escrever_excel(f"{openpyxl.utils.get_column_letter(col_siape)}{linha_atual}", membro.get("SIAPE", ""))
+                                            
+                                        if col_funcao: 
+                                            escrever_excel(f"{openpyxl.utils.get_column_letter(col_funcao)}{linha_atual}", membro.get("Função", ""))
+                                            
+                                        if col_ch:
+                                            try: ch_total = str(int(float(membro.get("CH_D", "0") or "0")) + int(float(membro.get("CH_F", "0") or "0")))
+                                            except: ch_total = "0"
+                                            escrever_excel(f"{openpyxl.utils.get_column_letter(col_ch)}{linha_atual}", ch_total)
+                                            
+                                        if col_inicio: 
+                                            escrever_excel(f"{openpyxl.utils.get_column_letter(col_inicio)}{linha_atual}", membro.get("Início", ""))
+                                            
+                                        if col_termino: 
+                                            escrever_excel(f"{openpyxl.utils.get_column_letter(col_termino)}{linha_atual}", membro.get("Término", ""))
+                                            
+                                        linha_atual += 1
 
                                 # ==========================================================================
                                 # 🔥 INJEÇÃO DOS DADOS FINANCEIROS & BLINDAGEM DA PLANILHA 🔥
@@ -1010,4 +1044,4 @@ with aba_gerador:
         )
 
 st.markdown("<br><hr>", unsafe_allow_html=True)
-st.markdown("<div style='text-align: center; color: #888888; padding: 10px; font-size: 14px;'>⚡ <b>Raichu Pro V5.7 (Scanner Perfeito de Chefias)</b> | Desenvolvido por Julio Maia 👨‍💻</div>", unsafe_allow_html=True)
+st.markdown("<div style='text-align: center; color: #888888; padding: 10px; font-size: 14px;'>⚡ <b>Raichu Pro V5.9 (Leitura Universal e Injeção de Equipe no Excel)</b> | Desenvolvido por Julio Maia 👨‍💻</div>", unsafe_allow_html=True)
