@@ -812,54 +812,40 @@ with aba_gerador:
                                         escrever_excel(f"L{linha_alvo}", m_fatiada["Termino"])
 
                                 # =========================================================
-                                # 🔥 INJEÇÃO DINÂMICA DA EQUIPE NO EXCEL (PLANO DE TRABALHO)
+                                # 🔥 INJEÇÃO DINÂMICA DA EQUIPE NO EXCEL (V5.9.3 - DEFINITIVA)
                                 # =========================================================
                                 linha_cabecalho_equipe = None
-                                col_nome = col_siape = col_funcao = col_ch = col_inicio = col_termino = None
                                 
                                 for r in range(40, 400):
                                     row_str = " ".join([str(ws.cell(row=r, column=c).value).lower() for c in range(1, 15) if ws.cell(row=r, column=c).value])
                                     if "nome" in row_str and ("siape" in row_str or "matrícula" in row_str or "matricula" in row_str):
                                         linha_cabecalho_equipe = r
-                                        for c in range(1, 15):
-                                            val = str(ws.cell(row=r, column=c).value).lower().strip()
-                                            if not val or val == "none": continue
-                                            
-                                            if "nome" in val: col_nome = c
-                                            elif "siape" in val or "matrícula" in val or "matricula" in val: col_siape = c
-                                            elif "função" in val or "funcao" in val or "cargo" in val: col_funcao = c
-                                            elif "horária" in val or "horaria" in val or "ch" == val: col_ch = c
-                                            elif "início" in val or "inicio" in val: col_inicio = c
-                                            elif "término" in val or "termino" in val: col_termino = c
                                         break
                                         
-                                if linha_cabecalho_equipe and col_nome:
-                                    linha_atual = linha_cabecalho_equipe + 1
+                                if linha_cabecalho_equipe:
+                                    # Pula exatamente 2 linhas a partir de onde achou "NOME" e "SIAPE"
+                                    # Isso resolve o problema de sobrepor as mesclagens (linhas 115 e 116)
+                                    linha_atual = linha_cabecalho_equipe + 2 
+                                    
                                     for membro in equipe_final:
                                         nome_m = str(membro.get("Nome", "")).strip()
                                         if not nome_m: continue
                                         
-                                        escrever_excel(f"{openpyxl.utils.get_column_letter(col_nome)}{linha_atual}", nome_m)
+                                        # Escrever a Função na Coluna A (onde fica "Pessoal Envolvido")
+                                        escrever_excel(f"A{linha_atual}", membro.get("Função", ""))
                                         
-                                        if col_siape: 
-                                            escrever_excel(f"{openpyxl.utils.get_column_letter(col_siape)}{linha_atual}", membro.get("SIAPE", ""))
-                                            
-                                        if col_funcao: 
-                                            escrever_excel(f"{openpyxl.utils.get_column_letter(col_funcao)}{linha_atual}", membro.get("Função", ""))
-                                            
-                                        if col_ch:
-                                            try: ch_total = str(int(float(membro.get("CH_D", "0") or "0")) + int(float(membro.get("CH_F", "0") or "0")))
-                                            except: ch_total = "0"
-                                            escrever_excel(f"{openpyxl.utils.get_column_letter(col_ch)}{linha_atual}", ch_total)
-                                            
-                                        if col_inicio: 
-                                            escrever_excel(f"{openpyxl.utils.get_column_letter(col_inicio)}{linha_atual}", membro.get("Início", ""))
-                                            
-                                        if col_termino: 
-                                            escrever_excel(f"{openpyxl.utils.get_column_letter(col_termino)}{linha_atual}", membro.get("Término", ""))
+                                        # Escrever o Nome na Coluna C
+                                        escrever_excel(f"C{linha_atual}", nome_m)
+                                        
+                                        # Escrever o SIAPE na Coluna F
+                                        escrever_excel(f"F{linha_atual}", membro.get("SIAPE", ""))
+                                        
+                                        # Calcular a Carga Horária e Escrever na Coluna I
+                                        try: ch_total = str(int(float(membro.get("CH_D", "0") or "0")) + int(float(membro.get("CH_F", "0") or "0")))
+                                        except: ch_total = "0"
+                                        escrever_excel(f"I{linha_atual}", ch_total)
                                             
                                         linha_atual += 1
-
                                 # ==========================================================================
                                 # 🔥 INJEÇÃO DOS DADOS FINANCEIROS & BLINDAGEM DA PLANILHA 🔥
                                 # ==========================================================================
