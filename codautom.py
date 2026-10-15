@@ -47,7 +47,7 @@ with aba_inicio:
     with col_side:
         with st.container(border=True):
             st.markdown("### ℹ️ Informações da Versão")
-            st.markdown("**Versão:** 5.9.3 (Correção do Plano de Trabalho ACT e Metas)")
+            st.markdown("**Versão:** 5.9.4 (Acordo de Parceria sem Fundação)")
             st.markdown("**Desenvolvido por:** Julio Maia dos Santos - Estudante de graduação em Engenharia Elétrica 👨‍💻⚡")
             st.markdown("**Arquitetura:** Python Nativo (Streamlit Cloud)")
             st.divider()
@@ -344,7 +344,7 @@ with aba_gerador:
                         dados_extraidos["classificacoes_raw"].append({"Tipo de Classificação": line, "Classificação": ""})
 
             # =========================================================
-            # 🔥 LEITOR UNIVERSAL DE NOMES E EQUIPE (V5.9.2)
+            # 🔥 LEITOR UNIVERSAL DE NOMES E EQUIPE (V5.9.2+)
             # =========================================================
             bloco_equipe = extrair_bloco(r'Resultados esperados:', [r'UNIDADES VINCULADAS\s*\n', r'CLASSIFICAÇÕES'])
             if not bloco_equipe:
@@ -441,6 +441,9 @@ with aba_gerador:
     if arquivos_pdf:
         st.markdown("---")
 
+        # =========================================================
+        # 🔥 PASSO 2: VALIDAÇÃO DA FUNDAÇÃO (V5.9.4 - COM OPÇÃO "SEM") 🔥
+        # =========================================================
         st.markdown("### 2️⃣ Passo 2: Validação da Fundação")
 
         tipo_sugerido = dados_extraidos.get("tipo_processo_sugerido", "Acordo de Cooperação Técnica (ACT)")
@@ -467,17 +470,27 @@ with aba_gerador:
             fund_sugerida = dados_extraidos.get("fundacao_sugerida", "FATEC")
 
             st.info(f"🤖 O robô identificou que este projeto parece estar vinculado à fundação: **{fund_sugerida}**.")
-            fundacao_correta = st.radio("A fundação identificada acima está correta?", ["Sim", "Não"], index=0, horizontal=True)
+            
+            fundacao_correta = st.radio(
+                "A fundação identificada acima está correta?", 
+                ["Sim", "Não, é outra fundação", "Não possui Fundação (Direto com a UFSM)"], 
+                index=0, 
+                horizontal=True
+            )
 
             ctx_fundacao = {}
             if fundacao_correta == "Sim":
                 fund_sigla = fund_sugerida
                 status_fund = "Já definida"
                 ctx_fundacao = fundacoes_dados[fund_sigla]
-            else:
+            elif fundacao_correta == "Não, é outra fundação":
                 fund_sigla = st.selectbox("Por favor, selecione a fundação correta abaixo:", list(fundacoes_dados.keys()))
                 status_fund = "Já definida"
                 ctx_fundacao = fundacoes_dados[fund_sigla]
+            else:
+                fund_sigla = "SEM"
+                status_fund = "Não possui"
+                ctx_fundacao = {}
 
         st.markdown("---")
         st.markdown("### 3️⃣ Passo 3: Conferência e Edição de Dados")
@@ -774,7 +787,6 @@ with aba_gerador:
                                     escrever_excel("A32", resumo)
                                     escrever_excel("A36", objetivos)
                                     escrever_excel("A40", justificativa)
-                                    # REMOVIDO PARA O ACT: escrever_excel("A44", resultados) 
                                 
                                 elif fund_sigla == "FDMS":
                                     escrever_excel("C30", tit_proj)
@@ -813,7 +825,6 @@ with aba_gerador:
                                 # =========================================================
                                 # 🔥 INJEÇÃO DAS METAS
                                 # =========================================================
-                                # O range foi ajustado para começar a busca pela linha 40 (onde ficam as metas do ACT)
                                 linha_inicio_metas = encontrar_linha_ampla(ws, "(descreva aqui a fase", 40, 450)
                                 linha_secao_51 = encontrar_linha_ampla(ws, "5.1 DESCRIÇÃO DAS ATIVIDADES", 40, 500) or 999
                                 
@@ -828,7 +839,7 @@ with aba_gerador:
                                         escrever_excel(f"L{linha_alvo}", m_fatiada["Termino"])
 
                                 # =========================================================
-                                # 🔥 INJEÇÃO DINÂMICA DA EQUIPE NO EXCEL (V5.9.3 - DEFINITIVA)
+                                # 🔥 INJEÇÃO DINÂMICA DA EQUIPE NO EXCEL
                                 # =========================================================
                                 linha_cabecalho_equipe = None
                                 
@@ -884,13 +895,13 @@ with aba_gerador:
                                                     except: pass
 
                                         linha_vinc_busca = encontrar_linha_ampla(ws, "TIPO DE REMUNERAÇÃO", 100, 160)
-                                        linha_vinc = linha_vinc_busca + 2 if linha_vinc_busca else (115 if fund_sigla in ["FDMS", "FATEC"] else 117)
+                                        linha_vinc = linha_vinc_busca + 2 if linha_vinc_busca else (115 if fund_sigla in ["FDMS", "FATEC", "SEM"] else 117)
 
                                         linha_nao_vinc_busca = encontrar_linha_ampla(ws, "FORMA DE CONTRATAÇÃO", 130, 200)
-                                        linha_nao_vinc = linha_nao_vinc_busca + 2 if linha_nao_vinc_busca else (150 if fund_sigla in ["FDMS", "FATEC"] else 152)
+                                        linha_nao_vinc = linha_nao_vinc_busca + 2 if linha_nao_vinc_busca else (150 if fund_sigla in ["FDMS", "FATEC", "SEM"] else 152)
 
                                         linha_anexo_busca = encontrar_linha_ampla(ws, "ESPECIFICAÇÃO", 280, 450)
-                                        linha_anexo = linha_anexo_busca + 1 if linha_anexo_busca else (300 if fund_sigla in ["FDMS", "FATEC"] else 399)
+                                        linha_anexo = linha_anexo_busca + 1 if linha_anexo_busca else (300 if fund_sigla in ["FDMS", "FATEC", "SEM"] else 399)
 
                                         cols_equipe = [1, 3, 6, 8, 9, 10, 11, 12]
                                         cols_anexo = [3, 8, 9, 11]
@@ -1038,4 +1049,4 @@ with aba_gerador:
         )
 
 st.markdown("<br><hr>", unsafe_allow_html=True)
-st.markdown("<div style='text-align: center; color: #888888; padding: 10px; font-size: 14px;'>⚡ <b>Raichu Pro V5.9.3 (Correção do Plano de Trabalho ACT e Metas)</b> | Desenvolvido por Julio Maia 👨‍💻</div>", unsafe_allow_html=True)
+st.markdown("<div style='text-align: center; color: #888888; padding: 10px; font-size: 14px;'>⚡ <b>Raichu Pro V5.9.4 (Acordo de Parceria sem Fundação)</b> | Desenvolvido por Julio Maia 👨‍💻</div>", unsafe_allow_html=True)
